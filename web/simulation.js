@@ -1,15 +1,15 @@
 import {productionRevenue,creditBusiness,recordLostSale} from './economy.js';
-var Ud = 40,
+var Ud = 48,
     oT = 120;
 var nT = 0.042,
     AD = [
-        [0, 7.5, 40, 1],
-        [0, 15.5, 40, 1],
-        [0, 23.5, 40, 1],
-        [0, 31.5, 40, 1],
-        [10, 0, 1, 40],
-        [22.5, 0, 1, 40],
-        [32, 0, 1, 40]
+        [-4, 7.5, 56, 1],
+        [-4, 15.5, 56, 1],
+        [-4, 23.5, 56, 1],
+        [-4, 31.5, 56, 1],
+        [10, -4, 1, 56],
+        [22.5, -4, 1, 56],
+        [32, -4, 1, 56], [40, -4, 1, 56], [-4, 43.5, 56, 1]
     ],
     vT = ["spring", "summer", "autumn", "winter"];
 var hS = (U) => vT[Math.floor(U / 24 / 2) % vT.length],
@@ -36,7 +36,7 @@ var hS = (U) => vT[Math.floor(U / 24 / 2) % vT.length],
         }
     },
     bS = ["heatwave", "storm", "flu", "blackout", "shortage", "meteors", "aliens", "zombies", "volcano", "goldrush", "lottery", "robots", "festival"],
-    fD = ["North Road", "Market Street", "Mill Road", "South Road", "West Avenue", "Central Avenue", "East Avenue"],
+    fD = ["North Road", "Market Street", "Mill Road", "South Road", "West Avenue", "Central Avenue", "East Avenue", "Garden Avenue", "Garden Street"],
     UP = ["empty", "light", "moderate", "heavy", "jammed"],
     hD = {
         work: {

@@ -16,18 +16,18 @@ export function addInvestors(t){
     ['Excel Partners',2000,850,'Quality investor: prefer positive profit and cash reserves; protect liquidity.'],
     ['Survive Capital',2600,1200,'Community investor: support useful food and health services at fair prices.'],
     ['Contrarian Fund',1800,800,'Contrarian investor: seek discounted recoveries, avoid expensive popular lots.'],
-    ['Andreessen Morewitz',2300,950,'Product investor: favor reliable products, repeat customers and capable execution.']
+    ['A16Fees',2300,950,'Product investor: favor reliable products, repeat customers and capable execution.']
   ];
   t.investors=profiles.map(([name,cash,maxTicket,strategy],n)=>({id:`i${n===5?6:n}`,name,cash,initialCash:cash,reserve:300,maxTicket,strategy,location:t.places.find(p=>p.name==='Plaza').id,invested:0,realized:0,basis:{},lastBought:{},lastSaleReview:-12,decisions:0,activity:'At Investor Plaza',log:[]}));
-  for(const [n,i] of t.investors.entries()){i.entryMarks={};i.valueLimit=[.9,1.2,.95,1.1,.8,1.05][n];i.strategy+=` Mandate: never bid above ${Math.round(i.valueLimit*100)}% of estimated lot value.`;}
+  for(const [n,i] of t.investors.entries()){i.location=t.places.find(p=>p.investorId===i.id)?.id||i.location;i.entryMarks={};i.valueLimit=[.9,1.2,.95,1.1,.8,1.05][n];i.strategy+=` Mandate: never bid above ${Math.round(i.valueLimit*100)}% of estimated lot value.`;}
   t.finance={offers:[],ledger:[],nextId:1,decisions:0,active:null,playerActive:false,skipPlayer:false,settlement:{cash:1000000,initialCash:1000000,paid:0}};
   for(const b of Object.values(t.businesses)){b.revenue=0;b.capital={founderShares:10000,marketShares:0,holdings:{},raised:0,restricted:0,lastAttempt:-24,operatingProfit:0,lastDayProfit:0,lastDecision:null,history:[]};}
   return t;
 }
 export function joinPlayer(t){
   let p=t.investors.find(i=>i.human);
-  if(!p){p={id:'i5',name:'KP',human:true,cash:2200,initialCash:2200,reserve:0,maxTicket:2200,strategy:'Your bids and sales are always your choice.',location:t.investors[0].location,invested:0,dividends:0,realized:0,basis:{},lastBought:{},decisions:0,activity:'At Investor Plaza',log:[]};t.investors.push(p);}
-  delete p.dividends;p.entryMarks||={};t.finance.playerActive=true;return p;
+  if(!p){p={id:'i5',name:'You',human:true,cash:2200,initialCash:2200,reserve:0,maxTicket:2200,strategy:'Your bids and sales are always your choice.',location:t.investors[0].location,invested:0,realized:0,basis:{},lastBought:{},decisions:0,activity:'At Investor Plaza',log:[]};t.investors.push(p);}
+  p.name='You';p.entryMarks||={};p.location=t.places.some(p=>p.id==='firm-i5')?'firm-i5':t.investors[0].location;t.finance.playerActive=true;return p;
 }
 export function valuation(t,id){
   const b=t.businesses[id],history=b.capital.history,now=history.slice(-24),prev=history.slice(-48,-24);
@@ -124,8 +124,10 @@ async function prepare(t,judge){
 
 }
 export async function runAuction(t,lot,judge,{onUpdate=()=>{},humanTurn}={}){
-  check(lot.status==='queued','Auction is not queued');lot.status='open';t.finance.active=lot.id;
-  const available=t.investors.filter(i=>i.id!==lot.sellerId&&(!i.human||t.finance.playerActive));
+  check(lot.status==='queued','Auction is not queued');
+  const b=t.businesses[lot.businessId];lot.equity=lot.shares/(shareCount(b)+lot.shares);lot.reserve=Math.max(lot.reserve,Math.ceil(valuation(t,lot.businessId).value*lot.equity/25)*25);
+  lot.status='open';t.finance.active=lot.id;
+  const available=t.investors.filter(i=>i.id!==lot.sellerId&&(!i.human||t.finance.playerActive&&!lot.playerDeclined));
   const offset=(Number(lot.id.split('-')[1])-1)%available.length;
   lot.participants=[...available.slice(offset),...available.slice(0,offset)].map(i=>i.id);
   for(let count=0;count<500;count++){
@@ -134,8 +136,8 @@ export async function runAuction(t,lot,judge,{onUpdate=()=>{},humanTurn}={}){
     let id;do{id=lot.participants[lot.cursor++%lot.participants.length];}while(lot.passed.includes(id)||id===lot.highBidder);
     const i=t.investors.find(i=>i.id===id),amount=nextPrice(lot);lot.next=id;await onUpdate(lot);
     let action='pass',answer,reason='';
-    if(amount>bidLimit(t,i,lot))reason='Cash, ticket or concentration limit';
-    else if(i.human){if(!t.finance.skipPlayer){check(humanTurn,'Player turn needs a human decision handler');action=await humanTurn(lot,i);check(['bid','pass'].includes(action),'Unknown player action');}else reason='Player chose to pass remaining lots this session';}
+    if(i.human){check(humanTurn,'Player turn needs a human decision handler');action=await humanTurn(lot,i);check(['bid','pass'].includes(action),'Unknown player action');}
+    else if(amount>bidLimit(t,i,lot))reason='Cash, ticket, concentration or valuation limit';
     else {
       const a=(await ask(t,judge,[{id:i.id,state:`${i.name}: ${i.strategy} Available cash ${money(i.cash)}, reserve ${money(i.reserve)}. ${businessFacts(t,lot.businessId)} Fixed lot ${(lot.equity*100).toFixed(1)}% equity; estimated lot value ${money(fairLotValue(t,lot))}. Next bid ${money(amount)}; current high ${money(lot.highBid)}. Cash funds the business; unspent new capital is excluded from its estimated value. No dividends. Current exposure cost ${money(i.basis[lot.businessId]||0)}. Winning cash is committed, returns uncertain.`,questions:{decision:qBid}}],'auction bid'))[i.id].decision;
       answer=a;action=a.choice;i.decisions++;
@@ -148,7 +150,8 @@ export async function runAuction(t,lot,judge,{onUpdate=()=>{},humanTurn}={}){
 }
 export async function financeTurn(t,judge,options={}){
   t.finance.skipPlayer=false;await prepare(t,judge);const funded=[];
-  for(const lot of t.finance.offers.filter(o=>o.status==='queued').slice(0,3)){await runAuction(t,lot,judge,options);if(lot.status==='funded')funded.push(lot);}
+  if(options.queueOnly)return funded;
+  for(const lot of t.finance.offers.filter(o=>o.status==='queued'&&(!options.lotId||o.id===options.lotId)).slice(0,options.maxLots||3)){await runAuction(t,lot,judge,options);if(lot.status==='funded')funded.push(lot);}
   assertFinance(t);return funded;
 }
 export const operatingBalances=t=>Object.fromEntries(Object.entries(t.businesses).map(([id,b])=>[id,{till:b.till,revenue:b.revenue||0}]));

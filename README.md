@@ -4,13 +4,19 @@ A local investing game adapted from Chizi's [Jevton](https://jevton.chizi.app/).
 
 ## Run
 
-In the prepared workspace, run `Start-Jevton.cmd`, then open **http://127.0.0.1:8765**. Keep the terminal open. Ctrl+C stops the server. A browser refresh starts a new town.
+In the prepared workspace, run `Start-KP-Town.cmd`, then open **http://127.0.0.1:8765**. Keep the terminal open. Ctrl+C stops the server. A browser refresh starts a new town.
 
 For a fresh checkout, install Python 3.12, create `.venv`, install a suitable PyTorch build plus `requirements.txt`, then run `.venv/Scripts/python.exe setup_model.py`. Start with `.venv/Scripts/python.exe server.py --model models/laya --device cuda`. CPU is supported with `--device cpu` but is slower. Checkpoints are downloaded only during setup; gameplay inference runs offline. The prepared runtime uses PyTorch 2.11.0+cu128 and Laya 0.3.11 on an RTX 5080.
 
 ## Play
 
-Advance with **Next hour** or **Auto**, or watch the autonomous town. **Play as KP** joins the investors with $2,200. The clock pauses for your bid or pass. Businesses offer a fixed equity lot; investors take turns raising by the stated increment or passing permanently. The highest bidder wins when all others pass. No bidder means no transfer. At most three auctions run per plaza session. Inspect businesses and portfolios at any time.
+Advance with **Next hour** or **Auto**, or watch the autonomous town. Before joining, the portfolio area contains only **Play as an investor**. Joining creates **You** with $2,200. In spectator mode, NPC auctions run quietly in the background while your chosen inspection stays open.
+
+Your portfolio lists every currently pitching business. Choose **Take pitch** for a particular business to start its auction, or **Pass** to let rivals compete without you. Taking a pitch commits no cash. Auto waits until all outstanding pitch choices and each of your auction turns have explicit decisions. Close slides the card out of view without passing. A pending bidding turn can be reopened from the portfolio. Manually turning Auto off keeps it off.
+
+Businesses offer fixed equity lots. Investors take turns raising by the stated increment or passing permanently. The highest bidder wins when all others pass. No bidder means no transfer. Business map labels and the original right-panel business list open the same floating card. Holdings can be inspected and sold from the portfolio.
+
+The speaker button mutes/unmutes effects and environmental ambience. Background music is never loaded or played. Joining gives a quiet bell; a successfully settled player win gives a short cash-register effect and confetti (motion omitted with reduced-motion preferences). Resident travel takes twice the original duration; simulation and traffic speed are unchanged.
 
 Investor cash is finite. AI investors have different cash reserves, ticket/concentration limits and valuation mandates; local Laya chooses within those limits. Names are playful fictional labels, not claims about real firms.
 
@@ -18,7 +24,7 @@ Shares can be liquidated immediately at their **current marked value**, rounded 
 
 ## Economy and evidence
 
-Residents have individual cash, hunger, energy, health, persistent tastes and purchase cadences. Laya selects activities, effort, food spend and destinations. Changing trends affect only part of the population; constrained budgets and health can change individual demand. Original shops are joined by clothing, books and leisure venues. Purchases, browsing, returning customers and product returns are separate events.
+Residents have individual cash, hunger, energy, health, persistent tastes and purchase cadences. Laya selects activities, effort, food spend and destinations. Owner strategy and discretionary category/store/purchase choices use seeded sampling from the actual local model probabilities; essential resident actions and the other decisions use the model choice. Sampling is recorded alongside the top model choice and does not substitute scripted answers. Changing trends affect only part of the population; constrained budgets and health can change individual demand. The 36 operating businesses include the original 17 and 19 additions: clothing, books, leisure, food, production and neighborhood services. Original building models, road treatment and materials are reused in a compact 48-unit square; the plaza, residential pond and cemetery provide intentional open space. Clinic, school, grocery and cafe businesses are interspersed among homes. Schools retain the simplified original service-contract model; no child/daycare transactions are invented. Purchases, browsing, returning customers and product returns are separate events.
 
 Receipt-backed quality failures cause return visits and refunds after two game hours. Refunds cannot exceed the original customer payment. Unpaid refund obligations remain explicit and reduce business value. Pitches and business inspectors expose trailing 24-hour customer, revenue, cost, quality and return evidence; growth compares two complete 24-hour windows. New purchases are shown as pending, not as a proven perfect return record.
 
@@ -35,10 +41,11 @@ The original rules were deliberately tuned for a longer investing loop: sleeping
 - `web/decisions.js`, `server.py`: actual local Laya inference. No cloud fallback.
 - `web/local-ui.js`: plaza, scorecards and persistent portfolio.
 - `build.py`, `tick.js.txt`: reproducible patches to the preserved original client.
-- `tests/finance.test.mjs`: accounting and mechanism checks.
+- `tests/finance.test.mjs`, `tests/extended.test.mjs`: accounting, refunds, chosen pitches, layout, audio and travel checks.
+- `tests/policy-comparison.mjs`: matched ordinary/adverse full simulations comparing cash, random legal, revenue-trend and conservative informed policies; exact identical model requests can reuse prior real-model results.
 - `tests/balance-local.mjs`: real-model extended simulations; large run data stays untracked.
 
-Run `node --test tests/finance.test.mjs`. With the local server running, `node tests/balance-local.mjs 72 ordinary 1956` runs a three-day simulation. Audit logs, virtual environments, weights and large test states are excluded from Git.
+Run `node --test tests/finance.test.mjs tests/extended.test.mjs`. With the local server running, `node tests/balance-local.mjs 72 ordinary 1956` runs a three-day simulation. Audit logs, virtual environments, weights and large test states are excluded from Git.
 
 This adaptation retains original attribution. The browser-delivered Jevton client is saved in `vendor/`, and `REFERENCE.md` records direct inspection. Its code/assets are not claimed to be original work or open source. Third-party license notices are retained. `provenance.json` records source/build hashes.
 

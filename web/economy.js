@@ -1,5 +1,7 @@
 // Explicit new economy. Revenue, capacity and owner execution are observable, never price noise.
 import {captureReceipts} from './metrics.js';
+import {expandTown} from './town-extension.js';
+import {sampleModel} from './model-sampling.js';
 export const products=['value','wellness','experience'];
 export const productNames={value:'Practical essentials',wellness:'Fresh & healthy',experience:'Premium experiences'};
 export function creditBusiness(b,amount,buyer,paid=amount){b.till+=amount;b.revenue=(b.revenue||0)+amount;if(b.economy&&buyer){const e=b.economy;e.buyers||={};e.repeatCustomers=(e.repeatCustomers||0)+(e.buyers[buyer]?1:0);e.buyers[buyer]=(e.buyers[buyer]||0)+1;e.pendingReceipts.push({buyer,amount,paid});}}
@@ -8,14 +10,12 @@ const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const choice=(instructions,criteria)=>({type:'choice',instructions,criteria});
 const sum=(rows,key)=>rows.reduce((n,r)=>n+r[key],0);
 export function extendTown(t){
-  t.places.find(p=>p.id==='office1').name='KP Office';
-  t.places.find(p=>p.id==='office1').color='#46634e';
   const newPlaces=[{id:'retail20',name:'Thread & Needle',category:'clothing',kind:'market',x:2,z:21,w:4,d:2,color:'#bd8b9d'},{id:'retail21',name:'Page Turners',category:'books',kind:'market',x:7,z:21,w:3,d:2,color:'#b69b76'},{id:'leisure22',name:'Playhouse',category:'leisure',kind:'tavern',x:29,z:20,w:2,d:3,color:'#987cad'}];
   for(const p of newPlaces){p.floors=1;t.places.push(p);t.businesses[p.id]={till:400,price:1,sales:0,hourSales:0,shortfalls:0};}
   const traders=t.residents.filter(r=>r.job==='trader'),musicians=t.residents.filter(r=>r.job==='musician');
   for(let n=0;n<4;n++)traders[n].work=newPlaces[Math.floor(n/2)].id;
   for(let n=0;n<2;n++)musicians[n].work='leisure22';
-  return t;
+  return expandTown(t);
 }
 export function addEconomy(t){
   t.economy={supplierCash:0,spending:[],demand:{value:40,wellness:40,experience:40},trend:'value',lastTrend:-1};
@@ -48,6 +48,7 @@ export async function planBusinesses(t,judge){
     e.observedDemand=perceived[0][0];
     return {id,state:`${t.places.find(p=>p.id===id).name} owner: ${e.owner.adaptability>70?'agile and observant':e.owner.adaptability<35?'habit-bound and slow to change':'cautious'}. Current product ${e.product}. Observed strongest demand is ${e.observedDemand}. ${e.product===e.observedDemand?'Product matches observed demand.':'Product misses the main demand.'} ${e.quality<65?'Poor product quality is causing bad customer experiences.':'Product quality is good.'} ${e.missed>3?'Capacity is full; customers are being turned away.':'There is spare capacity.'} Revenue $${Math.round(v)}, profit $${Math.round(p)}, cash $${Math.round(b.till)}. Changes cost $300–$500.`,questions:{strategy:planQuestions.strategy}};});
   const results=await judge(requests,'owner strategy');t.decisions+=requests.length;
+  for(const [id,a]of Object.entries(results))a.strategy=sampleModel(a.strategy,`owner:${id}:${t.hour}`);
   const productRequests=eligible.filter(([id])=>results[id].strategy.choice==='adapt').map(([id,b])=>({id,state:`Consumers' strongest observed demand is ${productNames[b.economy.observedDemand]}. The owner wants to launch a product serving that demand.`,questions:{product:planQuestions.product}}));
   const productResults=productRequests.length?await judge(productRequests,'owner product'):{};t.decisions+=productRequests.length;
   for(const [id,b]of eligible){const e=b.economy,a=results[id];e.lastReview=t.hour;e.lastDecision={...a,...productResults[id]};const product=productResults[id]?.product.choice||e.product;e.history.push({hour:t.hour,kind:'decision',strategy:a.strategy.choice,product});
@@ -137,14 +138,25 @@ export async function discretionaryVisits(t,judge){
   const requests=eligible.map(r=>{
     r.categoryTaste||=['clothing','books','leisure'][Number(r.id.slice(1))%3];r.lastCategory||={clothing:-48,books:-24,leisure:-12};
     const criteria={none:'Skip shopping this hour.'};
-    for(const p of shops){const e=t.businesses[p.id].economy,price=Math.round(({clothing:18,books:10,leisure:8}[p.category])*t.businesses[p.id].price);criteria[p.category]=`${p.name}: ${p.category}, ${productNames[e.product]}, costs $${price}, quality ${e.quality}. Last purchase ${t.hour-r.lastCategory[p.category]}h ago.${r.categoryTaste===p.category?' Personal favorite.':''}${trend===p.category?' Currently fashionable.':''}`;}
+    for(const category of ['clothing','books','leisure'])if(shops.some(p=>p.category===category))criteria[category]=`${category}; last purchased ${t.hour-r.lastCategory[category]}h ago.${r.categoryTaste===category?' Personal favorite.':''}${trend===category?' Fashionable today.':''}`;
     return {id:r.id,state:`${r.name} has free time, $${r.money}, mood ${r.mood}/100. Likes ${r.categoryTaste} and wants to spend free time on that interest. Has not bought ${r.categoryTaste} for ${t.hour-r.lastCategory[r.categoryTaste]} hours. Current taste ${r.currentPreference}. Clothing lasts about 48h; books about 24h; leisure about 6h. Keep enough money for meals.`,questions:{destination:choice('Visit one of these shops/venues this hour, or keep the current plan?',criteria),purchase:choice('If visiting the chosen destination, buy its product/service or just browse?',{buy:'Buy something wanted and affordable.',browse:'Spend time browsing without buying.'})}};
   });
-  const results=await judge(requests,'discretionary visits');t.decisions+=requests.length*2;
-  for(const r of eligible){const a=results[r.id],category=a.destination.choice;if(category==='none')continue;const p=shops.find(p=>p.category===category),id=p.id,b=t.businesses[id],e=b.economy;e.visits.push({hour:t.hour+1,customerId:r.id,kind:'shop'});e.requested++;r.activity='shop';r.target=id;r.lastDestination=a;
+  for(const request of requests)delete request.questions.purchase;
+  const results=await judge(requests,'discretionary visits');t.decisions+=requests.length;
+  for(const [id,a]of Object.entries(results))a.destination=sampleModel(a.destination,`visit:${id}:${t.hour}`);
+  const visitors=eligible.filter(r=>results[r.id].destination.choice!=='none');
+  const shopRequests=visitors.map(r=>({id:r.id,state:`${r.name} chose ${results[r.id].destination.choice}. Budget $${r.money}. Wants ${r.currentPreference}.`,questions:{shop:choice('Choose the best value shop for this customer.',Object.fromEntries(shops.filter(p=>p.category===results[r.id].destination.choice).map(p=>{const b=t.businesses[p.id],e=b.economy;return [p.id,`${p.name}: ${productNames[e.product]}, $${Math.round(({clothing:18,books:10,leisure:8}[p.category])*b.price)}, quality ${e.quality}, reliability ${Math.round(e.reliability*100)}%.${r.avoid?.[p.id]?' Previous defective purchase.':''}`];})))}}));
+  const shopResults=shopRequests.length?await judge(shopRequests,'retail store choice'):{};t.decisions+=shopRequests.length;
+  for(const [id,a]of Object.entries(shopResults))a.shop=sampleModel(a.shop,`store:${id}:${t.hour}`);
+  const purchaseRequests=visitors.map(r=>{const p=shops.find(p=>p.id===shopResults[r.id].shop.choice),b=t.businesses[p.id],e=b.economy,price=Math.round(({clothing:18,books:10,leisure:8}[p.category])*b.price),elapsed=t.hour-r.lastCategory[p.category];
+    return {id:r.id,state:`${r.name} is visiting ${p.name} for ${p.category}. ${r.categoryTaste===p.category?'This is a favorite interest.':''} Last purchase ${elapsed} hours ago. ${elapsed>={clothing:36,books:16,leisure:4}[p.category]?'Ready for a new purchase.':'Recently satisfied this need.'} Product costs $${price}; available cash $${r.money}, leaving $${r.money-price}. ${r.money-price>=12?'Can afford the product and meals.':'Needs to preserve money for food.'} Product quality ${e.quality}/100. ${r.avoid?.[p.id]?'Previous purchase here was defective.':'No bad experience here recorded.'}`,questions:{purchase:choice('Buy this wanted product now or browse without buying?',{buy:'Make the purchase.',browse:'Leave without purchasing.'})}};});
+  const purchases=purchaseRequests.length?await judge(purchaseRequests,'retail purchase'):{};t.decisions+=purchaseRequests.length;
+  for(const [id,a]of Object.entries(purchases))a.purchase=sampleModel(a.purchase,`buy:${id}:${t.hour}`);
+  for(const r of eligible){const a={...results[r.id],...purchases[r.id]},category=a.destination.choice;if(category==='none')continue;const p=shops.find(p=>p.id===shopResults[r.id].shop.choice),id=p.id,b=t.businesses[id],e=b.economy;e.visits.push({hour:t.hour+1,customerId:r.id,kind:'shop'});e.requested++;r.activity='shop';r.target=id;r.lastDestination=a;
     const price=Math.round(({clothing:18,books:10,leisure:8}[p.category])*b.price),cadence={clothing:36,books:16,leisure:4}[p.category],due=t.hour-r.lastCategory[p.category]>=cadence;
-    if(a.purchase.choice==='buy'&&due&&r.money>=price+8&&e.served<e.capacity){r.money-=price;creditBusiness(b,price,r.id,price);b.sales++;b.hourSales++;e.served++;r.lastCategory[p.category]=t.hour;r.mood=Math.min(100,r.mood+Math.round(5+e.quality/10));}
+    const bought=a.purchase.choice==='buy'&&due&&r.money>=price+8&&e.served<e.capacity;
+    if(bought){r.money-=price;creditBusiness(b,price,r.id,price);b.sales++;b.hourSales++;e.served++;r.lastCategory[p.category]=t.hour;r.mood=Math.min(100,r.mood+Math.round(5+e.quality/10));}
     else{const reason=e.served>=e.capacity?'capacity':!due?'already satisfied':a.purchase.choice==='browse'?'browsing':'budget reserve';e.failures.push({hour:t.hour+1,customerId:r.id,reason});if(reason==='capacity')e.missed++;r.mood=Math.min(100,r.mood+3);}
-    r.log.push({hour:t.hour,kind:'decision',text:`Spent an hour at ${p.name}; ${a.purchase.choice==='browse'?'browsed':due&&r.money>=8?'selected a purchase':'kept the wallet shut'}.`});
+    r.log.push({hour:t.hour,kind:'decision',text:`Spent an hour at ${p.name}; ${bought?'completed a purchase':'left without buying'}.`});
   }
 }

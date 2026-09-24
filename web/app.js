@@ -6,17 +6,17 @@ import {installUI} from './local-ui.js';
 import {extendTown,addEconomy,productionRevenue,creditBusiness,recordLostSale,planBusinesses,chooseShops,spendPlans,afterOperations,discretionaryVisits} from './economy.js';
 import {processReturns} from './metrics.js';
 var localUi;
-var Ud = 40,
+var Ud = 48,
     oT = 120;
 var nT = 0,
     AD = [
-        [0, 7.5, 40, 1],
-        [0, 15.5, 40, 1],
-        [0, 23.5, 40, 1],
-        [0, 31.5, 40, 1],
-        [10, 0, 1, 40],
-        [22.5, 0, 1, 40],
-        [32, 0, 1, 40]
+        [-4, 7.5, 56, 1],
+        [-4, 15.5, 56, 1],
+        [-4, 23.5, 56, 1],
+        [-4, 31.5, 56, 1],
+        [10, -4, 1, 56],
+        [22.5, -4, 1, 56],
+        [32, -4, 1, 56], [40, -4, 1, 56], [-4, 43.5, 56, 1]
     ],
     vT = ["spring", "summer", "autumn", "winter"];
 var hS = (U) => vT[Math.floor(U / 24 / 2) % vT.length],
@@ -43,7 +43,7 @@ var hS = (U) => vT[Math.floor(U / 24 / 2) % vT.length],
         }
     },
     bS = ["heatwave", "storm", "flu", "blackout", "shortage", "meteors", "aliens", "zombies", "volcano", "goldrush", "lottery", "robots", "festival"],
-    fD = ["North Road", "Market Street", "Mill Road", "South Road", "West Avenue", "Central Avenue", "East Avenue"],
+    fD = ["North Road", "Market Street", "Mill Road", "South Road", "West Avenue", "Central Avenue", "East Avenue", "Garden Avenue", "Garden Street"],
     UP = ["empty", "light", "moderate", "heavy", "jammed"],
     hD = {
         work: {
@@ -1661,10 +1661,10 @@ class BP {
             let H = await (await fetch($)).arrayBuffer();
             this.buffers.set(D, await U.decodeAudioData(H))
         };
-        await Promise.all([...Object.entries(sR), ...Object.entries(XJ)].map(([D, $]) => d(D, $).catch(() => {
+        await Promise.all([...Object.entries(sR).filter(([name])=>!xR.includes(name)), ...Object.entries(XJ)].map(([D, $]) => d(D, $).catch(() => {
             return
         })));
-        for (let D of Object.keys(sR)) {
+        for (let D of Object.keys(sR).filter(name=>!xR.includes(name))) {
             let $ = this.buffers.get(D);
             if (!$) continue;
             let H = U.createBufferSource();
@@ -1697,6 +1697,19 @@ class BP {
     }
     chime(U = !1) {
         this.shot(U ? "alarm" : "complete", U ? 0.22 : 0.4)
+    }
+    ding() {
+        if(this.muted)return;
+        if(!this.ctx)this.start();
+        const c=this.ctx;if(!c||!this.master)return;
+        if(c.state==='suspended')c.resume();
+        const at=c.currentTime;
+        for(const [frequency,volume]of [[1108,.065],[1662,.018]]){const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=frequency;g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(volume,at+.008);g.gain.exponentialRampToValueAtTime(.0001,at+.65);o.connect(g).connect(this.master);o.start(at);o.stop(at+.67);}
+    }
+    cashRegister() {
+        if(this.muted)return;if(!this.ctx)this.start();const c=this.ctx;if(!c||!this.master)return;
+        if(c.state==='suspended')c.resume();const at=c.currentTime;
+        for(const [offset,frequency,volume]of [[0,440,.035],[.055,660,.035],[.12,1318,.065],[.12,1977,.02]]){const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=frequency;g.gain.setValueAtTime(.0001,at+offset);g.gain.exponentialRampToValueAtTime(volume,at+offset+.008);g.gain.exponentialRampToValueAtTime(.0001,at+offset+.48);o.connect(g).connect(this.master);o.start(at+offset);o.stop(at+offset+.5);}
     }
     blip() {
         this.shot("click", 0.5)
@@ -22048,7 +22061,7 @@ function JS() {
     let M = document.createElement("canvas");
     M.width = 768, M.height = 96;
     let S = M.getContext("2d");
-    S.fillStyle = "#c7ab70", S.fillRect(0, 0, M.width, M.height), S.font = "500 44px Georgia, serif", S.fillStyle = "#263b38", S.textAlign = "center", S.textBaseline = "middle", S.fillText("J E V T O N", 384, 50);
+    S.fillStyle = "#c7ab70", S.fillRect(0, 0, M.width, M.height), S.font = "500 44px Georgia, serif", S.fillStyle = "#263b38", S.textAlign = "center", S.textBaseline = "middle", S.fillText("K P   T O W N", 384, 50);
     let B = new e$(M);
     return B.colorSpace = V0, Md(Q, new p$(4.25, 0.53), new zD({
         map: B,
@@ -22506,7 +22519,9 @@ class iT {
                 R = new dU((P.clientX - T.left) / T.width * 2 - 1, -((P.clientY - T.top) / T.height) * 2 + 1);
             this.raycaster.setFromCamera(R, this.camera);
             let Q = this.raycaster.intersectObjects([...this.figures.values()].map((M) => M.group), !0)[0]?.object.parent?.userData.id;
-            this.onPick(Q)
+            let hit=this.raycaster.intersectObjects([...this.placeMeshes.values()],true)[0]?.object;
+            while(hit&&!hit.userData.place)hit=hit.parent;
+            this.onPick(Q || (hit?.userData.place ? `business:${hit.userData.place}` : undefined))
         })
     }
     makeControls() {
@@ -22974,7 +22989,7 @@ class iT {
             P = H.getContext("2d");
         P.font = "500 28px Geist, system-ui, sans-serif";
         let T = Math.ceil(P.measureText(U).width) + 28;
-        H.width = T, H.height = 44, P.font = "500 28px Geist, system-ui, sans-serif", P.fillStyle = "rgba(10, 10, 10, 0.82)", P.beginPath(), P.roundRect(0, 0, T, 44, 10), P.fill(), P.fillStyle = "#ededed", P.textBaseline = "middle", P.fillText(U, 14, 23);
+        H.width = T, H.height = 44, P.font = "500 28px Geist, system-ui, sans-serif", P.clearRect(0,0,T,44), P.fillStyle = "#ffffff", P.textBaseline = "middle", P.fillText(U, 14, 23);
         let R = new e$(H);
         R.colorSpace = V0;
         let J = new OH(new w$({
@@ -22989,7 +23004,7 @@ class iT {
             D = new KU(U.color),
             $ = U.x + U.w / 2 - 0.5,
             H = U.z + U.d / 2 - 0.5;
-        if (U.kind === "park" || U.kind === "farm") d.add(SS(U));
+        if(U.id === "neighborhood-lake") d.add(SS({...U,name:"Riverside"})); else if (U.kind === "park" || U.kind === "farm") d.add(SS(U));
         else {
             let P = U.floors * 1.1,
                 T = U.w * 0.92,
@@ -23291,6 +23306,9 @@ class iT {
         })
     }
     moveAll(U, d) {
+        this.travelQueue ||= [];
+        if(this.hasJourney && performance.now()<this.hourStart+this.hourLength){this.travelQueue.push({town:structuredClone(U),duration:d});return;}
+        this.hasJourney=true;d*=2;
         this.hourLength = d, this.hourStart = performance.now();
         for (let D of U.residents) {
             if (D.buried || D.left) {
@@ -23325,17 +23343,12 @@ class iT {
         let P = this.block(D, $ + 0.3, 0.4, 0.45, 0.12, 7031603);
         this.scene.add(H, P)
     }
-    gravePosition(U) {
-        if (U < 36) return [29.2 + U % 3 * 0.9, 33.4 + Math.floor(U / 3) * 0.8];
-        let d = U - 36;
-        return [2 + d % 29 * 0.9, 41.4 + Math.floor(d / 29) * 0.9]
-    }
+    gravePosition(U) { const blocks=[[-2.5,14],[11.4,12],[23.8,9],[33.4,7],[41.4,12]];let col=U%54;for(const [x,count]of blocks){if(col<count)return [x+col*.78,48.6+Math.floor(U/54)*.58];col-=count;}return [1,49]; }
     buildCemetery() {
         let U = this.mat(12104356),
             d = this.mat(9079424);
         for (let [D, $, H, P] of [
-                [30.1, 38.1, 3, 10.2],
-                [15, 42.4, 27.4, 3]
+                [3.1,50,12,3], [16.3,50,10.5,3], [27.3,50,7.5,3], [36,50,6,3], [46.1,50,10,3]
             ]) {
             let T = new _U(new oU(H, 0.06, P), U);
             T.position.set(D, 0.03, $), T.receiveShadow = !0, this.scene.add(T);
@@ -23349,7 +23362,7 @@ class iT {
                 S.material = d, this.scene.add(S)
             }
         }
-        this.scene.add(this.label("Cemetery", 30.1, 1.9, 38), this.label("Cemetery", 15, 1.9, 42.4))
+        this.scene.add(this.label("Cemetery", 23.1, 1.9, 50))
     }
     home(U = 450) {
         let d = new i(Ud / 2 - 0.5, 0, Ud / 2 - 0.5);
@@ -23461,13 +23474,14 @@ class iT {
             let k = E.from.distanceToSquared(E.to) > 0.01 && D < 1;
             if (E.group.position.lerpVectors(E.from, E.to, $), k) {
                 E.group.lookAt(E.to.x, E.group.position.y, E.to.z);
-                let j = Math.sin(H * 10 + E.phase) * 0.6;
-                E.legL.rotation.x = j, E.legR.rotation.x = -j, E.armL.rotation.x = -j * 0.8, E.armR.rotation.x = j * 0.8, E.group.position.y += Math.abs(Math.sin(H * 10 + E.phase)) * 0.05, E.head.rotation.z = Math.sin(H * 5 + E.phase) * 0.04
+                let j = Math.sin(H * 5 + E.phase) * 0.6;
+                E.legL.rotation.x = j, E.legR.rotation.x = -j, E.armL.rotation.x = -j * 0.8, E.armR.rotation.x = j * 0.8, E.group.position.y += Math.abs(Math.sin(H * 5 + E.phase)) * 0.05, E.head.rotation.z = Math.sin(H * 2.5 + E.phase) * 0.04
             } else E.legL.rotation.x = E.legR.rotation.x = E.armL.rotation.x = E.armR.rotation.x = 0, E.head.rotation.z = 0, E.head.rotation.y = Math.sin(H * 0.6 + E.phase) * 0.35;
             let A = L === this.selected;
             if (E.head.scale.setScalar(A ? 1.1 : 1), A) this.marker.visible = !0, this.marker.position.copy(E.group.position).add(new i(0, 1.75 * E.group.scale.y + Math.sin(H * 3) * 0.12, 0)), this.marker.rotation.y = H * 1.2;
             if (A) E.ring.material.opacity = 0.9, E.ring.material.color.set(6333946)
         }
+        if(D>=1 && this.travelQueue?.length){const next=this.travelQueue.shift();this.hasJourney=false;this.moveAll(next.town,next.duration);}
         this.weather(d);
         let P = this.climate,
             R = (((performance.now() - this.dayStart) / this.dayLength * 24 + 8) % 24 - 6) / 24 * Math.PI * 2,
@@ -23555,7 +23569,7 @@ function YS(U) {
     return d
 }
 var Yd = new iT(lE, (U) => {
-        if (DD = U, Yd.select(U), U) qd.blip();
+        if (localUi?.select(U), DD = U, Yd.select(U), U) qd.blip();
         FD()
     }),
     mT = () => {
@@ -23567,13 +23581,14 @@ addEventListener("pointerdown", mT, {
 addEventListener("keydown", mT, {
     once: !0
 });
+WT.textContent=String.fromCodePoint(0x1F50A);WT.setAttribute('aria-label','Mute sound effects');WT.title='Mute sound effects';WT.setAttribute('aria-pressed','false');
 WT.addEventListener("click", () => {
     if (!qd.running) mT();
-    qd.setMuted(!qd.muted), WT.setAttribute("aria-pressed", String(!qd.muted)), WT.textContent = qd.muted ? "Sound off" : "Sound on"
+    qd.setMuted(!qd.muted), WT.setAttribute("aria-pressed", String(qd.muted)), WT.textContent=String.fromCodePoint(qd.muted?0x1F507:0x1F50A), WT.title=qd.muted?'Unmute sound effects':'Mute sound effects', WT.setAttribute('aria-label',WT.title)
 });
 Yd.build(e);
 for (const investor of e.investors) Yd.addFigure({id:investor.id,job:"clerk",target:investor.location},e);
-Yd.setTraffic(e.traffic.map((U) => U.level));
+Yd.setTraffic(e.traffic.map((U) => U.level || 1));
 N0.replaceChildren(...Object.entries(Id).map(([U, d]) => new Option(d.name, U)));
 GT.replaceChildren(...Object.entries(l0).map(([U, d]) => new Option(d.label, U, !1, U === e.chaos)));
 GT.addEventListener("change", () => {
@@ -23718,7 +23733,6 @@ function sE() {
             ["Calls", String(e.calls)],
             ["Avg latency", qD.calls ? `${Math.round(qD.millis/qD.calls)} ms` : "–"],
             ["Input tokens", qD.inputTokens.toLocaleString()],
-            ["Cloud cost", `$${(qD.inputTokens*nT/1e6).toFixed(4)}`],
             ["Decisions per call", e.calls ? String(Math.round(e.decisions / e.calls)) : "–"]
         ]),
         j = LU("div", "roster"),
@@ -23746,7 +23760,7 @@ function sE() {
 }
 
 function xH(U) {
-    DD = U, Yd.select(U), FD()
+    localUi?.select(U); DD = U, Yd.select(U), FD()
 }
 
 function xE() {
@@ -23870,19 +23884,22 @@ function HI() {
     let P = LU("div", "ending-actions");
     P.append($, H), m0.append(P), m0.hidden = !1, requestAnimationFrame(() => m0.classList.add("show")), u0(""), p0(), FD()
 }
-async function _T(marketOnly=false) {
-    marketOnly=marketOnly===true;
+async function _T(mode=false) {
+    const marketOnly=mode===true||!!(mode&&typeof mode==='object');
     if (_0 || ZS) return;
+    if(!marketOnly&&e.finance.playerActive&&e.finance.offers.some(o=>o.status==='queued')){u0('A pitch is waiting. Choose Take pitch or Pass for each pitching business.');localUi.pitchWaiting();return;}
     _0 = true;
+    localUi.renderDetail();
     nH.disabled = N0.disabled = GT.disabled = true;
     qd.hour();
     const before = structuredClone(e);
     u0(`Laya is deciding locally for ${e.residents.filter(r=>r.alive).length} residents…`);
     try {
+        if(mode?.lotId){const lot=e.finance.offers.find(o=>o.id===mode.lotId);if(!lot||lot.status!=='queued'||lot.playerPitchDecision)throw new Error('This pitch has already been decided.');lot.playerPitchDecision={action:mode.action,hour:e.hour};lot.playerDeclined=mode.action==='pass';}
         if(!marketOnly) await decideTown(e, core, judge);
         await planBusinesses(e,judge);
         u0('Businesses and investors are considering funding…');
-        const funded = await financeTurn(e, judge,{onUpdate:()=>localUi.marketUpdate(),humanTurn:(lot,investor)=>{L$=false;z0.setAttribute('aria-pressed','false');u0('Your turn at Investor Plaza. Bid or pass to continue.');return localUi.humanTurn(lot,investor);}});
+        const funded = await financeTurn(e, judge,{queueOnly:e.finance.playerActive&&!marketOnly,maxLots:e.finance.playerActive?1:3,lotId:mode?.lotId,onUpdate:()=>localUi.marketUpdate(),humanTurn:(lot,investor)=>{u0('Your turn at Investor Plaza. Bid or pass to continue.');return localUi.humanTurn(lot,investor);}});
         spendPlans(e);
         if(!marketOnly){
         const opening = operatingBalances(e);
@@ -23901,10 +23918,11 @@ async function _T(marketOnly=false) {
         Yd.moveAll(e, eE);
         if (changes.season) Yd.setSeason(e.season);
         Yd.setEvent(e.event); qd.setEvent(e.event); N0.value=e.event;
-        if(changes.newcomers) VD('Gazette', `${changes.newcomers} newcomers arrive in Jevton.`);
-        if(changes.left) VD('Gazette', `${changes.left} residents leave Jevton.`);
+        if(changes.newcomers) VD('Gazette', `${changes.newcomers} newcomers arrive in KP Town.`);
+        if(changes.left) VD('Gazette', `${changes.left} residents leave KP Town.`);
         if(changes.struck) VD('Breaking', `${Id[e.event].name} strikes the town.`, 'bad');
         }
+        for(const offer of funded)localUi.playerWin(offer);
         for(const offer of funded) VD('Investment', `${e.places.find(p=>p.id===offer.businessId).name} raises $${offer.amount} from ${e.investors.find(i=>i.id===offer.investorId).name}.`);
         $I(); u0('');
         if (!e.residents.some(r=>r.alive)) {
@@ -23917,7 +23935,8 @@ async function _T(marketOnly=false) {
         L$=false; z0.setAttribute('aria-pressed','false');
     }
     _0=false; p0(); FD(); nH.disabled=N0.disabled=GT.disabled=false;
-    if(L$&&!marketOnly) setTimeout(_T,vE);
+    if(e.finance.playerActive&&e.finance.offers.some(o=>o.status==='queued')){u0('A pitch is waiting. Choose which pitch to take or pass. Auto waits for you.');localUi.pitchWaiting();}
+    else if(L$) setTimeout(()=>{if(L$)_T();},vE);
 }
 
 var XD = {
@@ -24035,5 +24054,5 @@ const judge=makeJudge(usage=>{
   qD.calls+=usage.calls; qD.inputTokens+=usage.inputTokens; qD.millis+=usage.millis;
   e.calls+=usage.calls;
 });
-localUi=installUI({getTown:()=>e,select:xH,inspector:nE,isBusy:()=>_0,runPlaza:()=>_T(true),refresh:()=>{p0();FD();},onJoin:i=>Yd.addFigure({id:i.id,job:'trader',target:i.location},e),focusPlaza:()=>Yd.select('i0'),focusBusiness:id=>{const p=e.places.find(p=>p.id===id);if(!p)return;Yd.following=false;Yd.selected=undefined;const target=new i(p.x+p.w/2,0,p.z+p.d/2);Yd.flyTo(target,target.clone().add(new i(13,17,19)),750);}});
+localUi=installUI({onQueueUpdate:t=>{const lots=t.finance.offers.filter(o=>['queued','open'].includes(o.status)),plaza=t.places.find(p=>p.id==='park13');for(const [n,id]of Object.keys(t.businesses).entries()){const key=`q${n}`,index=lots.findIndex(o=>o.businessId===id);let figure=Yd.figures.get(key);if(index>=0&&!figure){Yd.addFigure({id:key,job:'trader',target:plaza.id},t);figure=Yd.figures.get(key);figure.group.userData.id=`business:${id}`;}if(figure){figure.group.visible=index>=0;if(index>=0){figure.from.set(plaza.x+.7+(index%6)*.8,0,plaza.z+.8+Math.floor(index/6)*.55);figure.to.copy(figure.from);figure.group.position.copy(figure.from);}}}},getTown:()=>e,select:xH,inspector:nE,onWin:()=>qd.cashRegister(),isBusy:()=>_0,runPlaza:(lotId,action)=>_T({lotId,action}),refresh:()=>{p0();FD();},onJoin:i=>{qd.ding();Yd.addFigure({id:i.id,job:'trader',target:i.location},e);},focusPlaza:()=>{const p=e.places.find(p=>p.id==='park13'),v=new i(p.x+p.w/2,0,p.z+p.d/2);Yd.following=false;Yd.flyTo(v,v.clone().add(new i(13,17,19)),750);},focusBusiness:id=>{const p=e.places.find(p=>p.id===id);if(!p)return;Yd.following=false;Yd.selected=undefined;const target=new i(p.x+p.w/2,0,p.z+p.d/2);Yd.flyTo(target,target.clone().add(new i(13,17,19)),750);}});
 FD();

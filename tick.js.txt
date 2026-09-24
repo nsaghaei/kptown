@@ -1,16 +1,19 @@
-async function _T(marketOnly=false) {
-    marketOnly=marketOnly===true;
+async function _T(mode=false) {
+    const marketOnly=mode===true||!!(mode&&typeof mode==='object');
     if (_0 || ZS) return;
+    if(!marketOnly&&e.finance.playerActive&&e.finance.offers.some(o=>o.status==='queued')){u0('A pitch is waiting. Choose Take pitch or Pass for each pitching business.');localUi.pitchWaiting();return;}
     _0 = true;
+    localUi.renderDetail();
     nH.disabled = N0.disabled = GT.disabled = true;
     qd.hour();
     const before = structuredClone(e);
     u0(`Laya is deciding locally for ${e.residents.filter(r=>r.alive).length} residents…`);
     try {
+        if(mode?.lotId){const lot=e.finance.offers.find(o=>o.id===mode.lotId);if(!lot||lot.status!=='queued'||lot.playerPitchDecision)throw new Error('This pitch has already been decided.');lot.playerPitchDecision={action:mode.action,hour:e.hour};lot.playerDeclined=mode.action==='pass';}
         if(!marketOnly) await decideTown(e, core, judge);
         await planBusinesses(e,judge);
         u0('Businesses and investors are considering funding…');
-        const funded = await financeTurn(e, judge,{onUpdate:()=>localUi.marketUpdate(),humanTurn:(lot,investor)=>{L$=false;z0.setAttribute('aria-pressed','false');u0('Your turn at Investor Plaza. Bid or pass to continue.');return localUi.humanTurn(lot,investor);}});
+        const funded = await financeTurn(e, judge,{queueOnly:e.finance.playerActive&&!marketOnly,maxLots:e.finance.playerActive?1:3,lotId:mode?.lotId,onUpdate:()=>localUi.marketUpdate(),humanTurn:(lot,investor)=>{u0('Your turn at Investor Plaza. Bid or pass to continue.');return localUi.humanTurn(lot,investor);}});
         spendPlans(e);
         if(!marketOnly){
         const opening = operatingBalances(e);
@@ -29,10 +32,11 @@ async function _T(marketOnly=false) {
         Yd.moveAll(e, eE);
         if (changes.season) Yd.setSeason(e.season);
         Yd.setEvent(e.event); qd.setEvent(e.event); N0.value=e.event;
-        if(changes.newcomers) VD('Gazette', `${changes.newcomers} newcomers arrive in Jevton.`);
-        if(changes.left) VD('Gazette', `${changes.left} residents leave Jevton.`);
+        if(changes.newcomers) VD('Gazette', `${changes.newcomers} newcomers arrive in KP Town.`);
+        if(changes.left) VD('Gazette', `${changes.left} residents leave KP Town.`);
         if(changes.struck) VD('Breaking', `${Id[e.event].name} strikes the town.`, 'bad');
         }
+        for(const offer of funded)localUi.playerWin(offer);
         for(const offer of funded) VD('Investment', `${e.places.find(p=>p.id===offer.businessId).name} raises $${offer.amount} from ${e.investors.find(i=>i.id===offer.investorId).name}.`);
         $I(); u0('');
         if (!e.residents.some(r=>r.alive)) {
@@ -45,5 +49,6 @@ async function _T(marketOnly=false) {
         L$=false; z0.setAttribute('aria-pressed','false');
     }
     _0=false; p0(); FD(); nH.disabled=N0.disabled=GT.disabled=false;
-    if(L$&&!marketOnly) setTimeout(_T,vE);
+    if(e.finance.playerActive&&e.finance.offers.some(o=>o.status==='queued')){u0('A pitch is waiting. Choose which pitch to take or pass. Auto waits for you.');localUi.pitchWaiting();}
+    else if(L$) setTimeout(()=>{if(L$)_T();},vE);
 }
