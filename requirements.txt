@@ -1,0 +1,5 @@
+laya==0.3.11
+transformers==5.17.0
+safetensors==0.8.0
+jsbeautifier==2.0.3
+# Install torch==2.11.0 from https://download.pytorch.org/whl/cu128 first on this RTX 5080.

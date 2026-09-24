@@ -1,0 +1,9 @@
+.local-runtime{font:12px 'Geist Mono',monospace;color:#b8c7d8;margin-left:auto;white-space:nowrap}
+.finance-list{display:grid;gap:4px}.finance-row{border:0;border-bottom:1px solid #262626;background:transparent;color:#e7e7e7;text-align:left;padding:10px 0;font:inherit;cursor:pointer;width:100%;line-height:1.5}
+.finance-row:hover,.finance-row:focus-visible{color:#e8c476;background:#1a1a1a;outline-offset:2px}
+.muted{color:#a2a2a2;font-size:12px;line-height:1.6}.credit{margin-top:12px;font-size:11px}
+.probability-row{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:4px 0;color:#c7c7c7}
+.decision{padding:8px 0}.decision p{margin:0 0 8px}.offer{padding:12px 0;border-bottom:1px solid #2d2d2d}
+details{margin-top:18px;font-size:13px;line-height:1.6}summary{cursor:pointer;color:#d7c398}details .section{margin-top:12px}
+#inspector .life p{margin:5px 0}.topbar .btn:disabled{opacity:.5;cursor:wait}
+@media(max-width:700px){.local-runtime{font-size:11px}.finance-row{font-size:14px;padding:12px 0}}

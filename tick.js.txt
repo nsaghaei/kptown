@@ -1,0 +1,40 @@
+async function _T() {
+    if (_0 || ZS) return;
+    _0 = true;
+    nH.disabled = N0.disabled = GT.disabled = true;
+    qd.hour();
+    const before = structuredClone(e);
+    u0(`Laya is deciding locally for ${e.residents.filter(r=>r.alive).length} residents…`);
+    try {
+        await decideTown(e, core, judge);
+        u0('Businesses and investors are considering funding…');
+        const funded = await financeTurn(e, judge);
+        const opening = operatingBalances(e);
+        UR(e);
+        finishOperations(e, opening);
+        const changes = SR(e);
+        u0('The Gazette is choosing its headline…');
+        await decideNews(e, core, judge);
+        assertFinance(e);
+        // Commit visuals only after all decisions, transfers, and accounting validate.
+        Yd.setTraffic(e.traffic.map(r=>r.level));
+        Yd.moveAll(e, eE);
+        if (changes.season) Yd.setSeason(e.season);
+        Yd.setEvent(e.event); qd.setEvent(e.event); N0.value=e.event;
+        if(changes.newcomers) VD('Gazette', `${changes.newcomers} newcomers arrive in Jevton.`);
+        if(changes.left) VD('Gazette', `${changes.left} residents leave Jevton.`);
+        if(changes.struck) VD('Breaking', `${Id[e.event].name} strikes the town.`, 'bad');
+        for(const offer of funded) VD('Investment', `${e.places.find(p=>p.id===offer.businessId).name} raises $${offer.amount} from ${e.investors.find(i=>i.id===offer.investorId).name}.`);
+        $I(); u0('');
+        if (!e.residents.some(r=>r.alive)) {
+            p0(); FD(); _0=false; N0.disabled=GT.disabled=false; HI(); return;
+        }
+    } catch(error) {
+        const actualCalls=e.calls;
+        e=before; e.calls=actualCalls;
+        u0(`Local Laya did not complete this hour: ${error.message}. The hour was rolled back.`);
+        L$=false; z0.setAttribute('aria-pressed','false');
+    }
+    p0(); FD(); _0=false; nH.disabled=N0.disabled=GT.disabled=false;
+    if(L$) setTimeout(_T,vE);
+}

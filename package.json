@@ -1,0 +1,1 @@
+{"name":"jevton-local-laya","private":true,"type":"module","scripts":{"test":"node --test tests/finance.test.mjs","verify:local":"node tests/verify-local.mjs"}}

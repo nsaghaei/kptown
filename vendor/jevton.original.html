@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Jevton</title>
+    <meta name="description" content="A town of 120 where Jev, a System One model, makes every decision and never writes a word. Seasons, disasters, an economy, a newspaper, and a cemetery." />
+    <meta name="theme-color" content="#0a0a0a" />
+    <link rel="canonical" href="https://jevton.chizi.app/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Jevton" />
+    <meta property="og:title" content="Jevton" />
+    <meta property="og:description" content="A town of 120 where an AI makes every decision and never writes a word. Over 1,000 decisions an hour, back in a second. Then the world tries to kill them." />
+    <meta property="og:url" content="https://jevton.chizi.app/" />
+    <meta property="og:image" content="https://jevton.chizi.app/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="The town of Jevton seen from above: houses, shops, roads, a park and clouds." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Jevton" />
+    <meta name="twitter:description" content="A town of 120 where an AI makes every decision and never writes a word. Over 1,000 decisions an hour, back in a second." />
+    <meta name="twitter:image" content="https://jevton.chizi.app/og.png" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏙️</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&family=Instrument+Serif&display=swap" rel="stylesheet" />
+    
+  <link rel="stylesheet" crossorigin href="./index-gv4n9k1y.css"><script type="module" crossorigin src="./index-5e95p6fp.js"></script></head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">Jev City</div>
+        <div class="clock" id="clock">Day 1, 00:00</div>
+        <div class="stats" id="stats"></div>
+        <label class="field">
+          <span class="sr-only">City conditions</span>
+          <select id="event-select"></select>
+          <svg class="field-chevron" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5 L8 10.5 L12 6.5" /></svg>
+        </label>
+        <label class="field">
+          <span class="sr-only">Disaster frequency</span>
+          <select id="chaos-select"></select>
+          <svg class="field-chevron" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5 L8 10.5 L12 6.5" /></svg>
+        </label>
+        <div class="segmented" role="tablist" aria-label="View">
+          <span class="segmented-indicator" aria-hidden="true"></span>
+          <button type="button" role="tab" data-view="3d" aria-selected="true">3D</button>
+          <button type="button" role="tab" data-view="top" aria-selected="false" tabindex="-1">Map</button>
+        </div>
+        <button type="button" class="btn primary" id="next">Next hour</button>
+        <button type="button" class="btn" id="auto" aria-pressed="false">Auto</button>
+        <button type="button" class="btn" id="sound" aria-pressed="true">Sound on</button>
+      </header>
+
+      <main class="workspace">
+        <section class="stage">
+          <canvas id="world" tabindex="0" aria-label="Town view. Drag to pan, right-drag or shift-drag to orbit, scroll to zoom, arrow keys to move."></canvas>
+          <div class="pad" aria-label="Camera controls">
+            <div class="pad-grid">
+              <span></span><button type="button" data-pan="0,1" aria-label="Pan forward">▲</button><span></span>
+              <button type="button" data-pan="-1,0" aria-label="Pan left">◀</button><button type="button" id="center" aria-label="Center on the town">●</button><button type="button" data-pan="1,0" aria-label="Pan right">▶</button>
+              <span></span><button type="button" data-pan="0,-1" aria-label="Pan back">▼</button><span></span>
+            </div>
+            <div class="pad-row">
+              <button type="button" data-rotate="1" aria-label="Rotate left">⟲</button>
+              <button type="button" data-rotate="-1" aria-label="Rotate right">⟳</button>
+            </div>
+            <div class="pad-row">
+              <button type="button" data-zoom="1" aria-label="Zoom in">+</button>
+              <button type="button" data-zoom="-1" aria-label="Zoom out">−</button>
+            </div>
+          </div>
+          <div class="toasts" id="toasts" aria-live="polite"></div>
+          <section class="ending" id="ending" role="dialog" aria-label="The end of Jevton" hidden></section>
+          <div class="hint show" id="hint"><span class="hint-key" aria-hidden="true">?</span><span class="hint-text">Drag to pan · Right-drag or shift-drag to orbit · Scroll to zoom · WASD or arrows to move · Click a resident to follow them</span></div>
+          <p class="status" id="status" role="status" hidden></p>
+        </section>
+        <aside class="inspector" id="inspector" aria-label="Inspector"></aside>
+      </main>
+    </div>
+    
+  <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"2c92e72e44d84042a6a9acd1055f98db","r":1,"spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>
+
