@@ -1,0 +1,8 @@
+import{test}from'node:test';import assert from'node:assert/strict';import core from'../web/simulation.js';import{extendTown,addEconomy}from'../web/economy.js';import{addInvestors,makeOffer,settleLot,financeTurn,totalCash,portfolio}from'../web/investors.js';
+test('rivals review each hour, can trim then exit, and do not review again during same-hour pitches',async()=>{
+ const t=addEconomy(addInvestors(extendTown(core.createTown()))),i=t.investors.find(i=>i.id==='i1'),o=makeOffer(t,'market10');o.status='open';o.highBid=o.reserve;o.highBidder=i.id;settleLot(t,o);for(const b of Object.values(t.businesses))b.capital.lastAttempt=0;
+ let action='sell',reviews=0;const judge=async requests=>Object.fromEntries(requests.map(r=>{const sale=!!r.questions.decision.criteria.exit;if(sale){reviews++;assert.ok(r.questions.decision.criteria.sell&&r.questions.decision.criteria.hold);}return[r.id,{decision:{choice:sale?action:'hold'}}]}));
+ const before=totalCash(t),cash=i.cash;await financeTurn(t,judge,{queueOnly:true});const remaining=t.businesses.market10.capital.holdings[i.id];assert.equal(remaining,o.shares-Math.floor(o.shares/2));assert.ok(i.cash>cash);assert.equal(reviews,1);await financeTurn(t,judge,{queueOnly:true});assert.equal(reviews,1);
+ t.hour++;action='hold';await financeTurn(t,judge,{queueOnly:true});assert.equal(reviews,2);assert.equal(t.businesses.market10.capital.holdings[i.id],remaining);
+ t.hour++;action='exit';await financeTurn(t,judge,{queueOnly:true});assert.equal(reviews,3);assert.equal(t.businesses.market10.capital.holdings[i.id],0);assert.equal(portfolio(t,i).cost,0);assert.equal(totalCash(t),before);assert.equal(t.finance.ledger.filter(x=>x.kind==='liquidation').length,2);
+});

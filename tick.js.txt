@@ -1,25 +1,27 @@
 async function _T(mode=false) {
     const marketOnly=mode===true||!!(mode&&typeof mode==='object');
     if (_0 || ZS) return;
-    if(!marketOnly&&e.finance.playerActive&&e.finance.offers.some(o=>o.status==='queued')){u0('A pitch is waiting. Choose Take pitch or Pass for each pitching business.');localUi.pitchWaiting();return;}
+    if(!marketOnly&&waitingForPlayer(e)){u0('A pitch is waiting. Choose Take pitch or Pass for each pitching business.');localUi.pitchWaiting();return;}
+    if(!marketOnly&&skipSleepingHours(e)){Yd.moveAll(e,eE);p0();FD();if(L$)setTimeout(()=>{if(L$)_T();},vE);return;}
     _0 = true;
     localUi.renderDetail();
     nH.disabled = N0.disabled = GT.disabled = true;
     qd.hour();
-    const before = structuredClone(e);
+    const before = structuredClone(e);let failed=false;
     u0(`Laya is deciding locally for ${e.residents.filter(r=>r.alive).length} residents…`);
     try {
-        if(mode?.lotId){const lot=e.finance.offers.find(o=>o.id===mode.lotId);if(!lot||lot.status!=='queued'||lot.playerPitchDecision)throw new Error('This pitch has already been decided.');lot.playerPitchDecision={action:mode.action,hour:e.hour};lot.playerDeclined=mode.action==='pass';}
+        const chosen=mode?.lotId||mode?.lotIds?decidePitches(e,mode):null;
         if(!marketOnly) await decideTown(e, core, judge);
         await planBusinesses(e,judge);
         u0('Businesses and investors are considering funding…');
-        const funded = await financeTurn(e, judge,{queueOnly:e.finance.playerActive&&!marketOnly,maxLots:e.finance.playerActive?1:3,lotId:mode?.lotId,onUpdate:()=>localUi.marketUpdate(),humanTurn:(lot,investor)=>{u0('Your turn at Investor Plaza. Bid or pass to continue.');return localUi.humanTurn(lot,investor);}});
+        const funded = await financeTurn(e, judge,{queueOnly:e.finance.playerActive&&!marketOnly,maxLots:chosen?.length||(e.finance.playerActive?1:3),lotIds:chosen,onUpdate:()=>localUi.marketUpdate(),humanTurn:(lot,investor)=>{u0('Your turn at Investor Plaza. Bid or pass to continue.');return localUi.humanTurn(lot,investor);}});
         spendPlans(e);
         if(!marketOnly){
         const opening = operatingBalances(e);
         processReturns(e);
         await chooseShops(e,core,judge);
         await discretionaryVisits(e,judge);
+        await lateVisits(e,judge);
         UR(e);
         afterOperations(e,opening);
         finishOperations(e, opening);
@@ -27,6 +29,7 @@ async function _T(mode=false) {
         u0('The Gazette is choosing its headline…');
         await decideNews(e, core, judge);
         assertFinance(e);
+        skipSleepingHours(e);
         // Commit visuals only after all decisions, transfers, and accounting validate.
         Yd.setTraffic(e.traffic.map(r=>r.level));
         Yd.moveAll(e, eE);
@@ -43,12 +46,14 @@ async function _T(mode=false) {
             p0(); FD(); _0=false; N0.disabled=GT.disabled=false; HI(); return;
         }
     } catch(error) {
+        failed=true;
         const actualCalls=e.calls;
         e=before; e.calls=actualCalls;
         u0(`Local Laya did not complete this hour: ${error.message}. The hour was rolled back.`);
         L$=false; z0.setAttribute('aria-pressed','false');
     }
     _0=false; p0(); FD(); nH.disabled=N0.disabled=GT.disabled=false;
-    if(e.finance.playerActive&&e.finance.offers.some(o=>o.status==='queued')){u0('A pitch is waiting. Choose which pitch to take or pass. Auto waits for you.');localUi.pitchWaiting();}
+    if(failed)return;
+    if(waitingForPlayer(e)){u0('A pitch is waiting. Choose which pitch to take or pass. Auto waits for you.');localUi.pitchWaiting();}
     else if(L$) setTimeout(()=>{if(L$)_T();},vE);
 }

@@ -1,3 +1,4 @@
+import {isPlaceOpen} from './hours.js';
 import {productionRevenue,creditBusiness,recordLostSale} from './economy.js';
 var Ud = 48,
     oT = 120;
@@ -211,10 +212,10 @@ var GS = () => ({
     arrived: 0
 });
 var c0 = (U, d) => U.residents.filter((D) => D.alive && D.home === d).length,
-    HP = (U) => U.places.filter((d) => d.kind === "home" && c0(U, d.id) > 4),
+    HP = (U) => U.places.filter((d) => d.kind === "home" && c0(U, d.id) > (d.capacity||4)),
     E$ = (U) => {
         let d = U.places.filter(($) => $.kind === "home"),
-            D = U.residents.filter(($) => $.alive).length / Math.max(1, d.length);
+            D = U.residents.filter(($) => $.alive).length / Math.max(1, d.reduce((n,p)=>n+(p.capacity||4)/4,0));
         return Math.round(12 * (1 + Math.max(0, D - 3) * 0.3))
     },
     e0 = ["Okafor", "Reyes", "Nakamura", "Haddad", "Lindqvist", "Mensah", "Dubois", "Ivanova", "Patel", "Costa", "Adeyemi", "Berg", "Kim", "Moreau", "Osei", "Rossi", "Silva", "Tanaka", "Weber", "Yilmaz"],
@@ -496,16 +497,10 @@ var PP = {
         tavern: [16, 26]
     };
 
-function j$(U, d) {
-    let D = uS[U];
-    if (!D) return !0;
-    let $ = d % 24,
-        [H, P] = D;
-    return P > 24 ? $ >= H || $ < P - 24 : $ >= H && $ < P
-}
+function j$(U,d){return isPlaceOpen(U,d);}
 var TP = (U) => U % 24 < 6 || U % 24 >= 23,
     U$ = (U, d) => U.residents.filter((D) => D.alive && D.work === d).length,
-    RP = (U, d) => d.kind !== "home" && d.kind !== "park" && U$(U, d.id) === 0;
+    RP = (U, d) => !!U.businesses[d.id] && d.kind !== "home" && d.kind !== "park" && U$(U, d.id) === 0;
 
 function NS(U, d, D) {
     let $ = U.places.find((Q) => Q.id === D),
@@ -764,17 +759,17 @@ function UR(U) {
             L = H(S.work);
         S.lastWage = 0;
         let E = -6,
-            k = 5,
+            k = Math.round(5*(S.appetite||1)),
             A = 0,
             j = -1,
             C = 0;
-        if (B === "work" && !j$(L ?? "home", U.hour) && L !== "clinic") j -= 2, E -= 4, S.log.push({
+        if (B === "work" && !j$(U.places.find(p=>p.id===S.work) || "home", U.hour) && L !== "clinic") j -= 2, E -= 4, S.log.push({
             hour: U.hour,
             text: `Turned up at ${U.places.find((Z)=>Z.id===S.work)?.name??"work"} to find it shut.`,
             kind: "event"
         });
         else if (B === "work") {
-            let Z = !j$(L ?? "home", U.hour) || d === "blackout" && (L === "office" || L === "market" || L === "school") || d === "winter" && L === "farm" || d === "aliens" && L !== "clinic" || d === "robots" && (L === "office" || L === "factory" || L === "school") || d === "volcano" && L === "farm",
+            let Z = !j$(U.places.find(p=>p.id===S.work) || "home", U.hour) || d === "blackout" && (L === "office" || L === "market" || L === "school") || d === "winter" && L === "farm" || d === "aliens" && L !== "clinic" || d === "robots" && (L === "office" || L === "factory" || L === "school") || d === "volcano" && L === "farm",
                 a = dP[S.effort],
                 Y = d === "goldrush" && (L === "factory" || L === "farm") ? 3 : 1,
                 f = Z ? 0 : Math.round({
@@ -785,7 +780,7 @@ function UR(U) {
                     trader: 12,
                     farmer: 10,
                     musician: 9
-                } [S.job] * a.wage * Y);
+                } [S.job] * (S.wageFactor||1) * a.wage * Y);
             if (d === "robots" && Z) j -= 6;
             if (d === "goldrush" && Y > 1) E -= 6, A -= 2;
             let G = P(S.work);
@@ -798,7 +793,7 @@ function UR(U) {
             if (d === "heatwave" && (L === "farm" || L === "factory")) A -= 6, E -= 8;
             if (d === "storm" && L === "farm") A -= 5
         }
-        if (B === "eat" && !j$("market", U.hour)) j -= 4, E -= 3, S.log.push({
+        if (B === "eat" && !j$(U.places.find(p=>p.id===S.target) || "market", U.hour)) j -= 4, E -= 3, S.log.push({
             hour: U.hour,
             text: "Found the market shut.",
             kind: "event"
@@ -815,7 +810,7 @@ function UR(U) {
             } else {j -= 4; recordLostSale(U,S);}
             if (d === "flu") A -= 3
         }
-        let I = c0(U, S.home) > 4;
+        let I = c0(U, S.home) > (U.places.find(p=>p.id===S.home)?.capacity||4);
         if (B === "rest") {
             if (E += I ? 18 : 30, A += S.hunger > 70 ? 0 : I ? 2 : 4, k += TP(U.hour) ? -4 : 0, j += 2, S.sick) S.sick -= 1;
             if (I) j -= 3
@@ -847,7 +842,7 @@ function UR(U) {
             });
             E += 4
         }
-        if (B === "tavern" && !j$("tavern", U.hour)) j -= 3, E -= 3;
+        if (B === "tavern" && !j$(U.places.find(p=>p.id===S.target) || "tavern", U.hour)) j -= 3, E -= 3;
         else if (B === "tavern") {
             let Z = P(S.target),
                 a = Math.round(6 * (Z?.price ?? 1));
@@ -859,7 +854,7 @@ function UR(U) {
         if (B === "help") {
             j += 6, E -= 5;
             let Z = U.residents.find((a) => a.alive && a.target === S.target && a.id !== S.id && (a.health < 35 || a.hunger > 80));
-            if (Z) $.helps += 1, Z.health += 6, Z.hunger -= 15, Z.mood += 8, Z.log.push({
+            if (Z) $.helps += 1, Z.health = Math.min(100,Z.health+6), Z.hunger = Math.max(0,Z.hunger-15), Z.mood = Math.min(100,Z.mood+8), Z.log.push({
                 hour: U.hour,
                 text: `${S.name} came to check on them.`,
                 kind: "event"
@@ -1018,7 +1013,7 @@ function UR(U) {
     for (let S of U.residents)
         if (!S.alive && !S.buried && S.diedAt !== void 0 && U.hour - S.diedAt >= 3) S.buried = !0;
     for (let S of U.places) {
-        if (S.kind === "home" || S.kind === "park" || U$(U, S.id) > 0) continue;
+        if (!U.businesses[S.id] || S.kind === "home" || S.kind === "park" || U$(U, S.id) > 0) continue;
         let B = [...U.residents].filter((L) => L.alive && L.work !== S.id).sort((L, E) => U$(U, E.work) - U$(U, L.work))[0];
         if (!B || U$(U, B.work) < 2) continue;
         B.work = S.id, B.job = Object.entries(PP).find(([, L]) => L === S.kind)?.[0] ?? B.job, B.log.push({
@@ -1340,7 +1335,7 @@ function yT(U, d, D, $) {
     for (let P = 0; P < d; P++) {
         let T = [...H].sort((M, S) => c0(U, M.id) - c0(U, S.id))[0],
             R = $ === "gold" ? D() < 0.7 ? "builder" : "farmer" : v0[Math.floor(D() * v0.length)],
-            J = U.places.filter((M) => M.kind === PP[R]).sort((M, S) => U$(U, M.id) - U$(U, S.id)),
+            J = U.places.filter((M) => M.kind === PP[R] && !!U.businesses[M.id]).sort((M, S) => U$(U, M.id) - U$(U, S.id)),
             Q = U.residents.length;
         U.residents.push({
             id: `r${Q}`,

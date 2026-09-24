@@ -1,10 +1,12 @@
 // Adapted locally from Chizi’s Jevton; original provenance in REFERENCE.md and vendor/.
-import {addInvestors,financeTurn,operatingBalances,finishOperations,assertFinance} from './investors.js';
+import {addInvestors,financeTurn,operatingBalances,finishOperations,assertFinance,decidePitches,waitingForPlayer} from './investors.js';
 import {decideTown,decideNews} from './decisions.js';
 import {makeJudge} from './client.js';
 import {installUI} from './local-ui.js';
-import {extendTown,addEconomy,productionRevenue,creditBusiness,recordLostSale,planBusinesses,chooseShops,spendPlans,afterOperations,discretionaryVisits} from './economy.js';
+import {extendTown,addEconomy,productionRevenue,creditBusiness,recordLostSale,planBusinesses,chooseShops,spendPlans,afterOperations,discretionaryVisits,lateVisits} from './economy.js';
 import {processReturns} from './metrics.js';
+import {isPlaceOpen} from './hours.js';
+import {skipSleepingHours} from './time.js';
 var localUi;
 var Ud = 48,
     oT = 120;
@@ -218,10 +220,10 @@ var GS = () => ({
     arrived: 0
 });
 var c0 = (U, d) => U.residents.filter((D) => D.alive && D.home === d).length,
-    HP = (U) => U.places.filter((d) => d.kind === "home" && c0(U, d.id) > 4),
+    HP = (U) => U.places.filter((d) => d.kind === "home" && c0(U, d.id) > (d.capacity||4)),
     E$ = (U) => {
         let d = U.places.filter(($) => $.kind === "home"),
-            D = U.residents.filter(($) => $.alive).length / Math.max(1, d.length);
+            D = U.residents.filter(($) => $.alive).length / Math.max(1, d.reduce((n,p)=>n+(p.capacity||4)/4,0));
         return Math.round(12 * (1 + Math.max(0, D - 3) * 0.3))
     },
     e0 = ["Okafor", "Reyes", "Nakamura", "Haddad", "Lindqvist", "Mensah", "Dubois", "Ivanova", "Patel", "Costa", "Adeyemi", "Berg", "Kim", "Moreau", "Osei", "Rossi", "Silva", "Tanaka", "Weber", "Yilmaz"],
@@ -503,16 +505,10 @@ var PP = {
         tavern: [16, 26]
     };
 
-function j$(U, d) {
-    let D = uS[U];
-    if (!D) return !0;
-    let $ = d % 24,
-        [H, P] = D;
-    return P > 24 ? $ >= H || $ < P - 24 : $ >= H && $ < P
-}
+function j$(U,d){return isPlaceOpen(U,d);}
 var TP = (U) => U % 24 < 6 || U % 24 >= 23,
     U$ = (U, d) => U.residents.filter((D) => D.alive && D.work === d).length,
-    RP = (U, d) => d.kind !== "home" && d.kind !== "park" && U$(U, d.id) === 0;
+    RP = (U, d) => !!U.businesses[d.id] && d.kind !== "home" && d.kind !== "park" && U$(U, d.id) === 0;
 
 function NS(U, d, D) {
     let $ = U.places.find((Q) => Q.id === D),
@@ -771,17 +767,17 @@ function UR(U) {
             L = H(S.work);
         S.lastWage = 0;
         let E = -6,
-            k = 5,
+            k = Math.round(5*(S.appetite||1)),
             A = 0,
             j = -1,
             C = 0;
-        if (B === "work" && !j$(L ?? "home", U.hour) && L !== "clinic") j -= 2, E -= 4, S.log.push({
+        if (B === "work" && !j$(U.places.find(p=>p.id===S.work) || "home", U.hour) && L !== "clinic") j -= 2, E -= 4, S.log.push({
             hour: U.hour,
             text: `Turned up at ${U.places.find((Z)=>Z.id===S.work)?.name??"work"} to find it shut.`,
             kind: "event"
         });
         else if (B === "work") {
-            let Z = !j$(L ?? "home", U.hour) || d === "blackout" && (L === "office" || L === "market" || L === "school") || d === "winter" && L === "farm" || d === "aliens" && L !== "clinic" || d === "robots" && (L === "office" || L === "factory" || L === "school") || d === "volcano" && L === "farm",
+            let Z = !j$(U.places.find(p=>p.id===S.work) || "home", U.hour) || d === "blackout" && (L === "office" || L === "market" || L === "school") || d === "winter" && L === "farm" || d === "aliens" && L !== "clinic" || d === "robots" && (L === "office" || L === "factory" || L === "school") || d === "volcano" && L === "farm",
                 a = dP[S.effort],
                 Y = d === "goldrush" && (L === "factory" || L === "farm") ? 3 : 1,
                 f = Z ? 0 : Math.round({
@@ -792,7 +788,7 @@ function UR(U) {
                     trader: 12,
                     farmer: 10,
                     musician: 9
-                } [S.job] * a.wage * Y);
+                } [S.job] * (S.wageFactor||1) * a.wage * Y);
             if (d === "robots" && Z) j -= 6;
             if (d === "goldrush" && Y > 1) E -= 6, A -= 2;
             let G = P(S.work);
@@ -805,7 +801,7 @@ function UR(U) {
             if (d === "heatwave" && (L === "farm" || L === "factory")) A -= 6, E -= 8;
             if (d === "storm" && L === "farm") A -= 5
         }
-        if (B === "eat" && !j$("market", U.hour)) j -= 4, E -= 3, S.log.push({
+        if (B === "eat" && !j$(U.places.find(p=>p.id===S.target) || "market", U.hour)) j -= 4, E -= 3, S.log.push({
             hour: U.hour,
             text: "Found the market shut.",
             kind: "event"
@@ -822,7 +818,7 @@ function UR(U) {
             } else {j -= 4; recordLostSale(U,S);}
             if (d === "flu") A -= 3
         }
-        let I = c0(U, S.home) > 4;
+        let I = c0(U, S.home) > (U.places.find(p=>p.id===S.home)?.capacity||4);
         if (B === "rest") {
             if (E += I ? 18 : 30, A += S.hunger > 70 ? 0 : I ? 2 : 4, k += TP(U.hour) ? -4 : 0, j += 2, S.sick) S.sick -= 1;
             if (I) j -= 3
@@ -854,7 +850,7 @@ function UR(U) {
             });
             E += 4
         }
-        if (B === "tavern" && !j$("tavern", U.hour)) j -= 3, E -= 3;
+        if (B === "tavern" && !j$(U.places.find(p=>p.id===S.target) || "tavern", U.hour)) j -= 3, E -= 3;
         else if (B === "tavern") {
             let Z = P(S.target),
                 a = Math.round(6 * (Z?.price ?? 1));
@@ -866,7 +862,7 @@ function UR(U) {
         if (B === "help") {
             j += 6, E -= 5;
             let Z = U.residents.find((a) => a.alive && a.target === S.target && a.id !== S.id && (a.health < 35 || a.hunger > 80));
-            if (Z) $.helps += 1, Z.health += 6, Z.hunger -= 15, Z.mood += 8, Z.log.push({
+            if (Z) $.helps += 1, Z.health = Math.min(100,Z.health+6), Z.hunger = Math.max(0,Z.hunger-15), Z.mood = Math.min(100,Z.mood+8), Z.log.push({
                 hour: U.hour,
                 text: `${S.name} came to check on them.`,
                 kind: "event"
@@ -1025,7 +1021,7 @@ function UR(U) {
     for (let S of U.residents)
         if (!S.alive && !S.buried && S.diedAt !== void 0 && U.hour - S.diedAt >= 3) S.buried = !0;
     for (let S of U.places) {
-        if (S.kind === "home" || S.kind === "park" || U$(U, S.id) > 0) continue;
+        if (!U.businesses[S.id] || S.kind === "home" || S.kind === "park" || U$(U, S.id) > 0) continue;
         let B = [...U.residents].filter((L) => L.alive && L.work !== S.id).sort((L, E) => U$(U, E.work) - U$(U, L.work))[0];
         if (!B || U$(U, B.work) < 2) continue;
         B.work = S.id, B.job = Object.entries(PP).find(([, L]) => L === S.kind)?.[0] ?? B.job, B.log.push({
@@ -1347,7 +1343,7 @@ function yT(U, d, D, $) {
     for (let P = 0; P < d; P++) {
         let T = [...H].sort((M, S) => c0(U, M.id) - c0(U, S.id))[0],
             R = $ === "gold" ? D() < 0.7 ? "builder" : "farmer" : v0[Math.floor(D() * v0.length)],
-            J = U.places.filter((M) => M.kind === PP[R]).sort((M, S) => U$(U, M.id) - U$(U, S.id)),
+            J = U.places.filter((M) => M.kind === PP[R] && !!U.businesses[M.id]).sort((M, S) => U$(U, M.id) - U$(U, S.id)),
             Q = U.residents.length;
         U.residents.push({
             id: `r${Q}`,
@@ -1710,6 +1706,11 @@ class BP {
         if(this.muted)return;if(!this.ctx)this.start();const c=this.ctx;if(!c||!this.master)return;
         if(c.state==='suspended')c.resume();const at=c.currentTime;
         for(const [offset,frequency,volume]of [[0,440,.035],[.055,660,.035],[.12,1318,.065],[.12,1977,.02]]){const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=frequency;g.gain.setValueAtTime(.0001,at+offset);g.gain.exponentialRampToValueAtTime(volume,at+offset+.008);g.gain.exponentialRampToValueAtTime(.0001,at+offset+.48);o.connect(g).connect(this.master);o.start(at+offset);o.stop(at+offset+.5);}
+    }
+    saleFeedback(outcome) {
+        if(this.muted)return;if(outcome==='profit'){this.cashRegister();return;}
+        if(!this.ctx)this.start();const c=this.ctx;if(!c||!this.master)return;if(c.state==='suspended')c.resume();const at=c.currentTime;
+        for(const [offset,frequency]of (outcome==='loss'?[[0,520],[.09,390],[.18,260]]:[[0,660]])){const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=frequency;g.gain.setValueAtTime(.0001,at+offset);g.gain.exponentialRampToValueAtTime(.035,at+offset+.01);g.gain.exponentialRampToValueAtTime(.0001,at+offset+.22);o.connect(g).connect(this.master);o.start(at+offset);o.stop(at+offset+.24);}
     }
     blip() {
         this.shot("click", 0.5)
@@ -23887,25 +23888,27 @@ function HI() {
 async function _T(mode=false) {
     const marketOnly=mode===true||!!(mode&&typeof mode==='object');
     if (_0 || ZS) return;
-    if(!marketOnly&&e.finance.playerActive&&e.finance.offers.some(o=>o.status==='queued')){u0('A pitch is waiting. Choose Take pitch or Pass for each pitching business.');localUi.pitchWaiting();return;}
+    if(!marketOnly&&waitingForPlayer(e)){u0('A pitch is waiting. Choose Take pitch or Pass for each pitching business.');localUi.pitchWaiting();return;}
+    if(!marketOnly&&skipSleepingHours(e)){Yd.moveAll(e,eE);p0();FD();if(L$)setTimeout(()=>{if(L$)_T();},vE);return;}
     _0 = true;
     localUi.renderDetail();
     nH.disabled = N0.disabled = GT.disabled = true;
     qd.hour();
-    const before = structuredClone(e);
+    const before = structuredClone(e);let failed=false;
     u0(`Laya is deciding locally for ${e.residents.filter(r=>r.alive).length} residents…`);
     try {
-        if(mode?.lotId){const lot=e.finance.offers.find(o=>o.id===mode.lotId);if(!lot||lot.status!=='queued'||lot.playerPitchDecision)throw new Error('This pitch has already been decided.');lot.playerPitchDecision={action:mode.action,hour:e.hour};lot.playerDeclined=mode.action==='pass';}
+        const chosen=mode?.lotId||mode?.lotIds?decidePitches(e,mode):null;
         if(!marketOnly) await decideTown(e, core, judge);
         await planBusinesses(e,judge);
         u0('Businesses and investors are considering funding…');
-        const funded = await financeTurn(e, judge,{queueOnly:e.finance.playerActive&&!marketOnly,maxLots:e.finance.playerActive?1:3,lotId:mode?.lotId,onUpdate:()=>localUi.marketUpdate(),humanTurn:(lot,investor)=>{u0('Your turn at Investor Plaza. Bid or pass to continue.');return localUi.humanTurn(lot,investor);}});
+        const funded = await financeTurn(e, judge,{queueOnly:e.finance.playerActive&&!marketOnly,maxLots:chosen?.length||(e.finance.playerActive?1:3),lotIds:chosen,onUpdate:()=>localUi.marketUpdate(),humanTurn:(lot,investor)=>{u0('Your turn at Investor Plaza. Bid or pass to continue.');return localUi.humanTurn(lot,investor);}});
         spendPlans(e);
         if(!marketOnly){
         const opening = operatingBalances(e);
         processReturns(e);
         await chooseShops(e,core,judge);
         await discretionaryVisits(e,judge);
+        await lateVisits(e,judge);
         UR(e);
         afterOperations(e,opening);
         finishOperations(e, opening);
@@ -23913,6 +23916,7 @@ async function _T(mode=false) {
         u0('The Gazette is choosing its headline…');
         await decideNews(e, core, judge);
         assertFinance(e);
+        skipSleepingHours(e);
         // Commit visuals only after all decisions, transfers, and accounting validate.
         Yd.setTraffic(e.traffic.map(r=>r.level));
         Yd.moveAll(e, eE);
@@ -23929,13 +23933,15 @@ async function _T(mode=false) {
             p0(); FD(); _0=false; N0.disabled=GT.disabled=false; HI(); return;
         }
     } catch(error) {
+        failed=true;
         const actualCalls=e.calls;
         e=before; e.calls=actualCalls;
         u0(`Local Laya did not complete this hour: ${error.message}. The hour was rolled back.`);
         L$=false; z0.setAttribute('aria-pressed','false');
     }
     _0=false; p0(); FD(); nH.disabled=N0.disabled=GT.disabled=false;
-    if(e.finance.playerActive&&e.finance.offers.some(o=>o.status==='queued')){u0('A pitch is waiting. Choose which pitch to take or pass. Auto waits for you.');localUi.pitchWaiting();}
+    if(failed)return;
+    if(waitingForPlayer(e)){u0('A pitch is waiting. Choose which pitch to take or pass. Auto waits for you.');localUi.pitchWaiting();}
     else if(L$) setTimeout(()=>{if(L$)_T();},vE);
 }
 
@@ -24054,5 +24060,6 @@ const judge=makeJudge(usage=>{
   qD.calls+=usage.calls; qD.inputTokens+=usage.inputTokens; qD.millis+=usage.millis;
   e.calls+=usage.calls;
 });
-localUi=installUI({onQueueUpdate:t=>{const lots=t.finance.offers.filter(o=>['queued','open'].includes(o.status)),plaza=t.places.find(p=>p.id==='park13');for(const [n,id]of Object.keys(t.businesses).entries()){const key=`q${n}`,index=lots.findIndex(o=>o.businessId===id);let figure=Yd.figures.get(key);if(index>=0&&!figure){Yd.addFigure({id:key,job:'trader',target:plaza.id},t);figure=Yd.figures.get(key);figure.group.userData.id=`business:${id}`;}if(figure){figure.group.visible=index>=0;if(index>=0){figure.from.set(plaza.x+.7+(index%6)*.8,0,plaza.z+.8+Math.floor(index/6)*.55);figure.to.copy(figure.from);figure.group.position.copy(figure.from);}}}},getTown:()=>e,select:xH,inspector:nE,onWin:()=>qd.cashRegister(),isBusy:()=>_0,runPlaza:(lotId,action)=>_T({lotId,action}),refresh:()=>{p0();FD();},onJoin:i=>{qd.ding();Yd.addFigure({id:i.id,job:'trader',target:i.location},e);},focusPlaza:()=>{const p=e.places.find(p=>p.id==='park13'),v=new i(p.x+p.w/2,0,p.z+p.d/2);Yd.following=false;Yd.flyTo(v,v.clone().add(new i(13,17,19)),750);},focusBusiness:id=>{const p=e.places.find(p=>p.id===id);if(!p)return;Yd.following=false;Yd.selected=undefined;const target=new i(p.x+p.w/2,0,p.z+p.d/2);Yd.flyTo(target,target.clone().add(new i(13,17,19)),750);}});
+localUi=installUI({onQueueUpdate:t=>{const lots=t.finance.offers.filter(o=>['queued','open'].includes(o.status)),plaza=t.places.find(p=>p.id==='park13');for(const [n,id]of Object.keys(t.businesses).entries()){const key=`q${n}`,index=lots.findIndex(o=>o.businessId===id);let figure=Yd.figures.get(key);if(index>=0&&!figure){Yd.addFigure({id:key,job:'trader',target:plaza.id},t);figure=Yd.figures.get(key);figure.group.userData.id=`business:${id}`;}if(figure){figure.group.visible=index>=0;if(index>=0){figure.from.set(plaza.x+.7+(index%6)*.8,0,plaza.z+.8+Math.floor(index/6)*.55);figure.to.copy(figure.from);figure.group.position.copy(figure.from);}}}},getTown:()=>e,select:xH,inspector:nE,onWin:()=>qd.cashRegister(),onSale:outcome=>qd.saleFeedback(outcome),isBusy:()=>_0,runPlaza:(choice,action)=>_T(Array.isArray(choice)?{lotIds:choice,action}:{lotId:choice,action}),refresh:()=>{p0();FD();},onJoin:i=>{qd.ding();Yd.addFigure({id:i.id,job:'trader',target:i.location},e);},focusPlaza:()=>{const p=e.places.find(p=>p.id==='park13'),v=new i(p.x+p.w/2,0,p.z+p.d/2);Yd.following=false;Yd.flyTo(v,v.clone().add(new i(13,17,19)),750);},focusBusiness:id=>{const p=e.places.find(p=>p.id===id);if(!p)return;Yd.following=false;Yd.selected=undefined;const target=new i(p.x+p.w/2,0,p.z+p.d/2);Yd.flyTo(target,target.clone().add(new i(13,17,19)),750);}});
 FD();
+document.querySelector('.pad')?.remove();

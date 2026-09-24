@@ -1,4 +1,5 @@
-// Original Jevton center preserved. Only outer homes move to make room for additions.
+// Original Jevton models and palette, with mixed compact blocks and neighborhood services.
+import {growPopulation} from './population.js';
 export function expandTown(t){
   const additions=[['Marina Threads','market','clothing'],['North Beach Books','market','books'],['Pier Arcade','tavern','leisure'],['Richmond Outfitters','market','clothing'],['Sunset Stories','market','books'],['Mission Play Lab','tavern','leisure'],['Fog & Fabric','market','clothing'],['City Lightshelf','market','books'],['Bayfront Funhouse','tavern','leisure'],['Pacific Pantry','market'],['Mission Kitchen','market'],['Sunset Clinic','clinic'],['Bay Makers','factory'],['Northside Workshop','factory'],['Mission Groves','farm'],['Bay Learning','school']];
   for(const p of t.places.filter(p=>p.kind==='home'&&p.x>=34))p.x+=8;
@@ -30,5 +31,15 @@ export function expandTown(t){
   for(const [n,[x,z]]of [[34,34],[37,34],[34,37],[37,37],[2,40],[5,40],[8,40],[12,40],[15,40],[18,40],[24,40],[27,40],[34,40],[37,40]].entries())t.places.push({id:`outer-infill${n}`,kind:'home',name:`Garden House ${n+1}`,x,z,w:2,d:2,floors:1+(n%3===0?1:0),color:['#f1ede4','#a9503f','#bcd1e6','#9a9c6e','#d2b48c'][n%5]});
   // Existing, fully simulated services trade places with homes; no invented child customers.
   for(const [businessId,homeId,role]of [['city34','home22','neighborhood clinic'],['city38','home35','neighborhood school'],['city32','home2','small grocery'],['city33','extension-home2','neighborhood cafe']]){const business=t.places.find(p=>p.id===businessId),home=t.places.find(p=>p.id===homeId),old={x:business.x,z:business.z,w:business.w,d:business.d};Object.assign(business,{x:home.x,z:home.z,w:home.w,d:home.d,serviceRole:role});Object.assign(home,old);}
-  return t;
+  // Your office joins the commercial avenue; its old site becomes a house.
+  const you=t.places.find(p=>p.id==='firm-i5'),courtyard=t.places.find(p=>p.id==='infill-home1'),former={x:you.x,z:you.z,w:you.w,d:you.d};Object.assign(you,{x:courtyard.x,z:courtyard.z,w:courtyard.w,d:courtyard.d});Object.assign(courtyard,former);
+  const nightlife=[['Lantern Bar','bar','tavern',4,[16,26],'#a0563f'],['Juniper Bar','bar','tavern',6,[16,26],'#986c5c'],['Palace Cinema','movie theater','tavern',7,[14,26],'#987cad'],['Starlight Cinema','movie theater','tavern',9,[14,26],'#b69b76'],['Moonlight Diner','diner','market',10,[7,26],'#d9a441']];
+  for(const [n,[name,venue,kind,slot,openHours,color]]of nightlife.entries()){
+    const site=t.places.find(p=>p.id===`infill-home${slot}`),id=`night${n}`,home=t.places.find(p=>p.id===`outer-infill${n}`);
+    Object.assign(site,{id,name,kind,venue,category:kind==='tavern'?'leisure':undefined,lateOpen:true,openHours,color,floors:venue==='movie theater'?2:1});
+    t.businesses[id]={till:400,price:1,sales:0,hourSales:0,shortfalls:0};
+    for(let k=0;k<2;k++){const serial=152+n*2+k,worker=structuredClone(original.find(r=>r.job===(kind==='market'?'trader':'musician')));Object.assign(worker,{id:`r${serial}`,name:`${['Mika','Noor','Eli','Rowan','Alma','Theo','June','Oscar','Wren','Nico'][n*2+k]} Vale`,age:24+n*3+k,work:id,home:home.id,target:home.id,activity:'rest',log:[{hour:0,kind:'event',text:`Moved to town to work at ${name}.`}]});t.residents.push(worker);}
+  }
+  for(const p of t.places.filter(p=>['Diner','Jazz club','Tavern'].includes(p.name))){p.lateOpen=true;p.openHours=[p.kind==='market'?7:16,26];p.venue=p.name==='Diner'?'diner':p.name==='Jazz club'?'jazz club':'bar';}
+  return growPopulation(t);
 }

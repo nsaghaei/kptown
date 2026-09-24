@@ -1,3 +1,4 @@
+import {isPlaceOpen} from './hours.js';
 // Explicit new economy. Revenue, capacity and owner execution are observable, never price noise.
 import {captureReceipts} from './metrics.js';
 import {expandTown} from './town-extension.js';
@@ -81,8 +82,8 @@ export async function chooseShops(t,core,judge){
   const requests=[];
   for(const r of t.residents.filter(r=>r.alive)){
     if(r.activity==='work'&&t.businesses[r.work]?.economy.failed){r.activity='rest';r.target=r.home;r.log.push({hour:t.hour,kind:'warning',text:'Workplace closed; no wage this hour.'});continue;}
-    const kind={eat:'market',clinic:'clinic',tavern:'tavern'}[r.activity];if(!kind||!core.isOpen(kind,t.hour))continue;
-    const shops=t.places.filter(p=>p.kind===kind&&!p.category&&!t.businesses[p.id].economy.failed);
+    const kind={eat:'market',clinic:'clinic',tavern:'tavern'}[r.activity];if(!kind)continue;
+    const shops=t.places.filter(p=>p.kind===kind&&!p.category&&isPlaceOpen(p,t.hour)&&!t.businesses[p.id].economy.failed);
     if(!shops.length){r.activity='rest';r.target=r.home;continue;}
     const criteria=Object.fromEntries(shops.map(p=>{const b=t.businesses[p.id],e=b.economy;return [p.id,`${p.name}: ${productNames[e.product]}, price ${Math.round(b.price*100)}%, quality ${e.quality}, appeal ${(e.appeal*e.reputation).toFixed(1)}.${r.avoid?.[p.id]?' Previously sold this customer a defective product.':''}`];}));
     requests.push({id:r.id,state:`Consumer ${r.name}, cash $${r.money}, hunger ${r.hunger}, health ${r.health}. Preference now ${productNames[r.currentPreference]}; long-term taste ${productNames[r.preference]}. Needs ${kind==='market'?'a meal':kind==='clinic'?'treatment':'social time'}. Choose a useful, affordable nearby business.`,questions:{shop:choice('Which offered business best fits this consumer’s preference and budget?',criteria)}});
@@ -93,7 +94,7 @@ export async function chooseShops(t,core,judge){
   const live=t.residents.filter(r=>results[r.id]);const offset=t.hour%Math.max(1,live.length),order=[...live.slice(offset),...live.slice(0,offset)];
   for(const r of order){const id=results[r.id].shop.choice,b=t.businesses[id],e=b.economy;e.requested++;r.lastShop=results[r.id].shop;e.visits.push({hour:t.hour+1,customerId:r.id,kind:'shop'});
     const kind=t.places.find(p=>p.id===id).kind;
-    let target=id;if(e.served>=e.capacity){e.missed++;const alternative=t.places.filter(p=>p.kind===kind&&!p.category&&!t.businesses[p.id].economy.failed&&t.businesses[p.id].economy.served<t.businesses[p.id].economy.capacity).sort((a,b)=>t.businesses[a.id].price-t.businesses[b.id].price)[0];target=alternative?.id;if(target){e.visits.pop();t.businesses[target].economy.visits.push({hour:t.hour+1,customerId:r.id,kind:'shop'});}}
+    let target=id;if(e.served>=e.capacity){e.missed++;const alternative=t.places.filter(p=>p.kind===kind&&!p.category&&isPlaceOpen(p,t.hour)&&!t.businesses[p.id].economy.failed&&t.businesses[p.id].economy.served<t.businesses[p.id].economy.capacity).sort((a,b)=>t.businesses[a.id].price-t.businesses[b.id].price)[0];target=alternative?.id;if(target){e.visits.pop();t.businesses[target].economy.visits.push({hour:t.hour+1,customerId:r.id,kind:'shop'});}}
     if(target){r.target=target;t.businesses[target].economy.served++;r.purchaseCount++;r.log.push({hour:t.hour,kind:'decision',text:`Chose ${t.places.find(p=>p.id===target).name} for ${productNames[t.businesses[target].economy.product]}.`});}
     else if(kind==='market') {r.target=id;} // essential food gets a queued takeaway overflow; demand still records capacity pressure.
     else {r.activity='rest';r.target=r.home;}
@@ -110,6 +111,7 @@ export function productionRevenue(t,resident,base){
   const revenue=Math.round(base*activity*share*e.appeal*scale);e.contracts+=revenue;return revenue;
 }
 export function afterOperations(t,opening){
+  closeLateVisits(t);
   captureReceipts(t);
   for(const [id,b] of Object.entries(t.businesses))b.hourSales=(t.economy.receipts||[]).filter(r=>r.businessId===id&&r.hour===t.hour).length;
   for(const [id,b]of Object.entries(t.businesses)){
@@ -132,14 +134,14 @@ export function afterOperations(t,opening){
 }
 export async function discretionaryVisits(t,judge){
   const hour=t.hour%24;if(hour<10||hour>21)return;
-  const shops=t.places.filter(p=>p.category&&!t.businesses[p.id].economy.failed),eligible=t.residents.filter(r=>r.alive&&r.hunger<60&&r.energy>35&&r.money>20&&(['rest','park','tavern'].includes(r.activity)||(t.hour+Number(r.id.slice(1)))%4===0&&r.activity==='work'));
+  const shops=t.places.filter(p=>p.category&&isPlaceOpen(p,t.hour)&&!t.businesses[p.id].economy.failed),eligible=t.residents.filter(r=>r.alive&&r.hunger<60&&r.energy>35&&r.money>20&&(['rest','park','tavern'].includes(r.activity)||(t.hour+Number(r.id.slice(1)))%4===0&&r.activity==='work'));
   if(!eligible.length||!shops.length)return;
   const trend=['clothing','books','leisure'][Math.floor(t.hour/24)%3];t.economy.categoryTrend=trend;
   const requests=eligible.map(r=>{
     r.categoryTaste||=['clothing','books','leisure'][Number(r.id.slice(1))%3];r.lastCategory||={clothing:-48,books:-24,leisure:-12};
     const criteria={none:'Skip shopping this hour.'};
     for(const category of ['clothing','books','leisure'])if(shops.some(p=>p.category===category))criteria[category]=`${category}; last purchased ${t.hour-r.lastCategory[category]}h ago.${r.categoryTaste===category?' Personal favorite.':''}${trend===category?' Fashionable today.':''}`;
-    return {id:r.id,state:`${r.name} has free time, $${r.money}, mood ${r.mood}/100. Likes ${r.categoryTaste} and wants to spend free time on that interest. Has not bought ${r.categoryTaste} for ${t.hour-r.lastCategory[r.categoryTaste]} hours. Current taste ${r.currentPreference}. Clothing lasts about 48h; books about 24h; leisure about 6h. Keep enough money for meals.`,questions:{destination:choice('Visit one of these shops/venues this hour, or keep the current plan?',criteria),purchase:choice('If visiting the chosen destination, buy its product/service or just browse?',{buy:'Buy something wanted and affordable.',browse:'Spend time browsing without buying.'})}};
+    return {id:r.id,state:`${r.name}, thrift ${r.traits?.thrift??50}/100 and novelty-seeking ${r.traits?.novelty??50}/100, has free time, $${r.money}, mood ${r.mood}/100. Likes ${r.categoryTaste} and wants to spend free time on that interest. Has not bought ${r.categoryTaste} for ${t.hour-r.lastCategory[r.categoryTaste]} hours. Current taste ${r.currentPreference}. Clothing lasts about 48h; books about 24h; leisure about 6h. Keep enough money for meals.`,questions:{destination:choice('Visit one of these shops/venues this hour, or keep the current plan?',criteria),purchase:choice('If visiting the chosen destination, buy its product/service or just browse?',{buy:'Buy something wanted and affordable.',browse:'Spend time browsing without buying.'})}};
   });
   for(const request of requests)delete request.questions.purchase;
   const results=await judge(requests,'discretionary visits');t.decisions+=requests.length;
@@ -158,5 +160,29 @@ export async function discretionaryVisits(t,judge){
     if(bought){r.money-=price;creditBusiness(b,price,r.id,price);b.sales++;b.hourSales++;e.served++;r.lastCategory[p.category]=t.hour;r.mood=Math.min(100,r.mood+Math.round(5+e.quality/10));}
     else{const reason=e.served>=e.capacity?'capacity':!due?'already satisfied':a.purchase.choice==='browse'?'browsing':'budget reserve';e.failures.push({hour:t.hour+1,customerId:r.id,reason});if(reason==='capacity')e.missed++;r.mood=Math.min(100,r.mood+3);}
     r.log.push({hour:t.hour,kind:'decision',text:`Spent an hour at ${p.name}; ${bought?'completed a purchase':'left without buying'}.`});
+  }
+}
+
+export function closeLateVisits(t){
+  for(const r of t.residents.filter(r=>r.alive)){const p=t.places.find(p=>p.id===r.target);if(p?.lateOpen&&!isPlaceOpen(p,t.hour)&&['shop','tavern','eat','work'].includes(r.activity)){r.activity='rest';r.target=r.home;delete r.lateVisit;r.log.push({hour:t.hour,kind:'event',text:`${p.name} closed; headed home.`});}}
+}
+
+export async function lateVisits(t,judge){
+  closeLateVisits(t);
+  const h=t.hour%24;if(h>=2&&h<20)return;
+  const venues=t.places.filter(p=>p.lateOpen&&isPlaceOpen(p,t.hour)&&!t.businesses[p.id].economy.failed&&t.residents.some(r=>r.alive&&r.work===p.id));
+  if(!venues.length||['blackout','aliens','zombies','volcano','meteors'].includes(t.event))return;
+  // A small persistent night-owl cohort may go out; attendance is a model decision.
+  const eligible=t.residents.filter(r=>r.alive&&(r.traits?.nightOwl??Number(r.id.slice(1))%6===0)&&r.health>40&&r.energy>35&&r.hunger<70&&r.money>=20&&['rest','park','shop'].includes(r.activity)&&!t.businesses[r.target]?.economy.visits.some(v=>v.customerId===r.id&&v.hour===t.hour+1));
+  if(!eligible.length)return;
+  const requests=eligible.map(r=>({id:r.id,state:`${r.name}, a night owl, has free time at ${h}:00, $${r.money}, energy ${r.energy}, hunger ${r.hunger}, mood ${r.mood}. ${r.lateVisit?'Already paid admission to '+t.places.find(p=>p.id===r.lateVisit.businessId)?.name+'. May stay there without buying again.':'Would enjoy a late evening out if affordable.'} All offered venues close at 2am. Most neighbors sleep; staying home is fine.`,questions:{venue:choice('Where spend this late hour? Consider an enjoyable affordable night out or rest at home.',{home:'Go home and rest.',...Object.fromEntries(venues.map(p=>[p.id,`${p.name}, ${p.venue}; ${p.venue==='movie theater'?'a two-hour movie':p.venue==='diner'?'a late meal':'music and conversation'}, price $${Math.round((p.venue==='movie theater'?10:p.venue==='diner'?8:6)*t.businesses[p.id].price)}, quality ${t.businesses[p.id].economy.quality}.`]))})}}));
+  const results=await judge(requests,'late evening visits');t.decisions+=requests.length;
+  for(const r of eligible){const answer=sampleModel(results[r.id].venue,`night:${r.id}:${t.hour}`),p=venues.find(p=>p.id===answer.choice);r.lastLateChoice=answer;
+    if(!p){delete r.lateVisit;r.activity='rest';r.target=r.home;continue;}
+    const b=t.businesses[p.id],e=b.economy,staying=r.lateVisit?.businessId===p.id&&r.lateVisit.until>t.hour,price=Math.round((p.venue==='movie theater'?10:p.venue==='diner'?8:6)*b.price);
+    if(e.served>=e.capacity||!staying&&r.money<price+8){e.failures.push({hour:t.hour+1,customerId:r.id,reason:e.served>=e.capacity?'capacity':'budget reserve'});if(e.served>=e.capacity)e.missed++;r.activity='rest';r.target=r.home;delete r.lateVisit;continue;}
+    e.visits.push({hour:t.hour+1,customerId:r.id,kind:'shop',late:true,staying});e.requested++;e.served++;r.activity='shop';r.target=p.id;
+    if(!staying){r.money-=price;creditBusiness(b,price,r.id,price);b.sales++;b.hourSales++;r.lateVisit={businessId:p.id,until:t.hour+(p.venue==='movie theater'?2:3)};if(p.venue==='diner')r.hunger=Math.max(0,r.hunger-26);}
+    r.mood=Math.min(100,r.mood+4);r.log.push({hour:t.hour,kind:'decision',text:`${staying?'Stayed late at':'Visited'} ${p.name}${staying?'':` for $${price}`}; closes at 2am.`});
   }
 }

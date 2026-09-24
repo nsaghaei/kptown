@@ -1,3 +1,4 @@
+import {isPlaceOpen} from './hours.js';
 const choice=(instructions,criteria)=>({type:'choice',instructions,criteria});
 const noul=instructions=>({type:'noul',instructions});
 const score=(instructions,criteria)=>({type:'score',instructions,criteria});
@@ -22,7 +23,7 @@ export function residentRequests(town,core) {
     const closedByEvent=(town.event==='blackout'&&['office','market','school'].includes(work.kind))||
       (town.event==='winter'&&work.kind==='farm')||(town.event==='aliens'&&work.kind!=='clinic')||
       (town.event==='robots'&&['office','factory','school'].includes(work.kind))||(town.event==='volcano'&&work.kind==='farm');
-    const workOpen=core.isOpen(work.kind,town.hour)&&!closedByEvent&&!town.businesses[r.work]?.economy?.failed;
+    const workOpen=isPlaceOpen(work,town.hour)&&!closedByEvent&&!town.businesses[r.work]?.economy?.failed;
     const hunger=r.hunger>85?'starving and urgently needs food':r.hunger>60?'hungry':r.hunger<25?'full':'slightly hungry';
     const energy=r.energy<25?'exhausted':r.energy>70?'well rested':'tired';
     const health=r.health<40?'in poor health':r.health>75?'healthy':'in fair health';
@@ -31,7 +32,7 @@ export function residentRequests(town,core) {
     });
     // Current location and previous action anchor this small model to repeating that action.
     // Keep them in the original simulation/inspector, but ask using present needs and availability.
-    return {id:r.id,state:`${r.name}, age ${r.age}, is ${hunger}, ${energy}, and ${health}. Health ${r.health}/100, energy ${r.energy}/100, hunger ${r.hunger}/100 (higher is hungrier), mood ${r.mood}/100. Has $${r.money}; rent arrears $${r.arrears}.${r.sick?' Currently sick and needs treatment.':''}\n${core.time(town.hour)}, ${town.season}. ${core.events[town.event].description} Food shops ${core.isOpen('market',town.hour)&&town.event!=='blackout'?'open and selling meals':'closed'}. Workplace ${workOpen?'open':'closed; working earns nothing'}. ${hours<6||hours>=23?'It is nighttime, when most people sleep.':''} Rent is $12/day.${r.energy<30?' Immediate personal need: sleep. Exhaustion is damaging health.':r.health<35&&r.hunger<75?' Feels very ill and needs a doctor.':''}`,questions:{...questions,helpwho}};
+    return {id:r.id,state:`${r.name}, age ${r.age}, thrift ${r.traits?.thrift??50}/100, sociability ${r.traits?.sociability??50}/100, income ${Math.round((r.wageFactor||1)*100)}% of the usual wage, is ${hunger}, ${energy}, and ${health}. Health ${r.health}/100, energy ${r.energy}/100, hunger ${r.hunger}/100 (higher is hungrier), mood ${r.mood}/100. Has $${r.money}; rent arrears $${r.arrears}.${r.sick?' Currently sick and needs treatment.':''}\n${core.time(town.hour)}, ${town.season}. ${core.events[town.event].description} Food shops ${town.places.some(p=>p.kind==='market'&&!p.category&&isPlaceOpen(p,town.hour))&&town.event!=='blackout'?'open and selling meals':'closed'}. Workplace ${workOpen?'open':'closed; working earns nothing'}. ${hours<6||hours>=23?'It is nighttime, when most people sleep. Bars, cinemas, the jazz club and diners stay open until 2am for a few rested late visitors.':''} Rent is $12/day.${r.energy<30?' Immediate personal need: sleep. Exhaustion is damaging health.':r.health<35&&r.hunger<75?' Feels very ill and needs a doctor.':''}`,questions:{...questions,helpwho}};
   });
 }
 export function buildTownRequests(town,core) {

@@ -50,8 +50,23 @@ source=source.replace('Jevton','KP Town')
 replace_once('k = 7,\n            A = 0,\n            j = -2,','k = 5,\n            A = 0,\n            j = -1,')
 replace_once('k += 3, S.sick','k += TP(U.hour) ? -4 : 0, j += 2, S.sick')
 replace_once('if (H.length > 30 && (P >= 8 || T < 30) && d() < 0.5)', 'if (H.length > 30 && U.hour % 6 === 0 && (P >= 8 || T < 30) && d() < 0.5)')
+# Per-business hours let late venues trade until 2am without opening every shop.
+a=source.index('function j$(U, d) {');b=source.index('var TP =',a)
+source=source[:a]+"function j$(U,d){return isPlaceOpen(U,d);}"+'\n'+source[b:]
+source=source.replace('j$(L ?? "home", U.hour)', 'j$(U.places.find(p=>p.id===S.work) || "home", U.hour)')
+source=source.replace('j$("market", U.hour)', 'j$(U.places.find(p=>p.id===S.target) || "market", U.hour)')
+source=source.replace('j$("tavern", U.hour)', 'j$(U.places.find(p=>p.id===S.target) || "tavern", U.hour)')
+replace_once('if (S.kind === "home" || S.kind === "park" || U$(U, S.id) > 0) continue;', 'if (!U.businesses[S.id] || S.kind === "home" || S.kind === "park" || U$(U, S.id) > 0) continue;')
+replace_once('RP = (U, d) => d.kind !== "home" && d.kind !== "park" && U$(U, d.id) === 0', 'RP = (U, d) => !!U.businesses[d.id] && d.kind !== "home" && d.kind !== "park" && U$(U, d.id) === 0')
+# Apartments support the larger population; crowding and rent use actual capacity.
+source=source.replace('c0(U, d.id) > 4','c0(U, d.id) > (d.capacity||4)').replace('c0(U, S.home) > 4','c0(U, S.home) > (U.places.find(p=>p.id===S.home)?.capacity||4)')
+source=source.replace('D = U.residents.filter(($) => $.alive).length / Math.max(1, d.length)', 'D = U.residents.filter(($) => $.alive).length / Math.max(1, d.reduce((n,p)=>n+(p.capacity||4)/4,0))')
+source=source.replace('M.kind === PP[R]', 'M.kind === PP[R] && !!U.businesses[M.id]')
+replace_once('k = 5,\n            A = 0,', 'k = Math.round(5*(S.appetite||1)),\n            A = 0,')
+replace_once('} [S.job] * a.wage * Y)', '} [S.job] * (S.wageFactor||1) * a.wage * Y)')
+replace_once('Z.health += 6, Z.hunger -= 15, Z.mood += 8', 'Z.health = Math.min(100,Z.health+6), Z.hunger = Math.max(0,Z.hunger-15), Z.mood = Math.min(100,Z.mood+8)')
 pure=source[:source.index('var sR =')]
-(WEB/'simulation.js').write_text("import {productionRevenue,creditBusiness,recordLostSale} from './economy.js';\n"+pure+'\n'+CORE+'\nexport default core;\n',encoding='utf-8')
+(WEB/'simulation.js').write_text("import {isPlaceOpen} from './hours.js';\nimport {productionRevenue,creditBusiness,recordLostSale} from './economy.js';\n"+pure+'\n'+CORE+'\nexport default core;\n',encoding='utf-8')
 
 replace_once('e = sT(),','e = addEconomy(addInvestors(extendTown(sT()))),')
 replace_once('nT = 0.042','nT = 0')
@@ -86,6 +101,11 @@ replace_once('    blip() {',"""    ding() {
         if(c.state==='suspended')c.resume();const at=c.currentTime;
         for(const [offset,frequency,volume]of [[0,440,.035],[.055,660,.035],[.12,1318,.065],[.12,1977,.02]]){const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=frequency;g.gain.setValueAtTime(.0001,at+offset);g.gain.exponentialRampToValueAtTime(volume,at+offset+.008);g.gain.exponentialRampToValueAtTime(.0001,at+offset+.48);o.connect(g).connect(this.master);o.start(at+offset);o.stop(at+offset+.5);}
     }
+    saleFeedback(outcome) {
+        if(this.muted)return;if(outcome==='profit'){this.cashRegister();return;}
+        if(!this.ctx)this.start();const c=this.ctx;if(!c||!this.master)return;if(c.state==='suspended')c.resume();const at=c.currentTime;
+        for(const [offset,frequency]of (outcome==='loss'?[[0,520],[.09,390],[.18,260]]:[[0,660]])){const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=frequency;g.gain.setValueAtTime(.0001,at+offset);g.gain.exponentialRampToValueAtTime(.035,at+offset+.01);g.gain.exponentialRampToValueAtTime(.0001,at+offset+.22);o.connect(g).connect(this.master);o.start(at+offset);o.stop(at+offset+.24);}
+    }
     blip() {""")
 replace_once('\n            ["Cost so far", `$${(qD.inputTokens*nT/1e6).toFixed(4)}`],','')
 replace_once('    moveAll(U, d) {',"""    moveAll(U, d) {
@@ -109,12 +129,14 @@ source=re.sub(r'\bJev\b','Laya',source)
 source=source.replace('"Cost so far"','"Cloud cost"')
 source=source.replace('`${oT} residents. Every hour, Laya','`${e.residents.filter(r=>r.alive).length} residents. Every hour, Laya')
 prefix='''// Adapted locally from Chizi’s Jevton; original provenance in REFERENCE.md and vendor/.
-import {addInvestors,financeTurn,operatingBalances,finishOperations,assertFinance} from './investors.js';
+import {addInvestors,financeTurn,operatingBalances,finishOperations,assertFinance,decidePitches,waitingForPlayer} from './investors.js';
 import {decideTown,decideNews} from './decisions.js';
 import {makeJudge} from './client.js';
 import {installUI} from './local-ui.js';
-import {extendTown,addEconomy,productionRevenue,creditBusiness,recordLostSale,planBusinesses,chooseShops,spendPlans,afterOperations,discretionaryVisits} from './economy.js';
+import {extendTown,addEconomy,productionRevenue,creditBusiness,recordLostSale,planBusinesses,chooseShops,spendPlans,afterOperations,discretionaryVisits,lateVisits} from './economy.js';
 import {processReturns} from './metrics.js';
+import {isPlaceOpen} from './hours.js';
+import {skipSleepingHours} from './time.js';
 var localUi;
 '''
 suffix='''
@@ -122,8 +144,9 @@ const judge=makeJudge(usage=>{
   qD.calls+=usage.calls; qD.inputTokens+=usage.inputTokens; qD.millis+=usage.millis;
   e.calls+=usage.calls;
 });
-localUi=installUI({onQueueUpdate:t=>{const lots=t.finance.offers.filter(o=>['queued','open'].includes(o.status)),plaza=t.places.find(p=>p.id==='park13');for(const [n,id]of Object.keys(t.businesses).entries()){const key=`q${n}`,index=lots.findIndex(o=>o.businessId===id);let figure=Yd.figures.get(key);if(index>=0&&!figure){Yd.addFigure({id:key,job:'trader',target:plaza.id},t);figure=Yd.figures.get(key);figure.group.userData.id=`business:${id}`;}if(figure){figure.group.visible=index>=0;if(index>=0){figure.from.set(plaza.x+.7+(index%6)*.8,0,plaza.z+.8+Math.floor(index/6)*.55);figure.to.copy(figure.from);figure.group.position.copy(figure.from);}}}},getTown:()=>e,select:xH,inspector:nE,onWin:()=>qd.cashRegister(),isBusy:()=>_0,runPlaza:(lotId,action)=>_T({lotId,action}),refresh:()=>{p0();FD();},onJoin:i=>{qd.ding();Yd.addFigure({id:i.id,job:'trader',target:i.location},e);},focusPlaza:()=>{const p=e.places.find(p=>p.id==='park13'),v=new i(p.x+p.w/2,0,p.z+p.d/2);Yd.following=false;Yd.flyTo(v,v.clone().add(new i(13,17,19)),750);},focusBusiness:id=>{const p=e.places.find(p=>p.id===id);if(!p)return;Yd.following=false;Yd.selected=undefined;const target=new i(p.x+p.w/2,0,p.z+p.d/2);Yd.flyTo(target,target.clone().add(new i(13,17,19)),750);}});
+localUi=installUI({onQueueUpdate:t=>{const lots=t.finance.offers.filter(o=>['queued','open'].includes(o.status)),plaza=t.places.find(p=>p.id==='park13');for(const [n,id]of Object.keys(t.businesses).entries()){const key=`q${n}`,index=lots.findIndex(o=>o.businessId===id);let figure=Yd.figures.get(key);if(index>=0&&!figure){Yd.addFigure({id:key,job:'trader',target:plaza.id},t);figure=Yd.figures.get(key);figure.group.userData.id=`business:${id}`;}if(figure){figure.group.visible=index>=0;if(index>=0){figure.from.set(plaza.x+.7+(index%6)*.8,0,plaza.z+.8+Math.floor(index/6)*.55);figure.to.copy(figure.from);figure.group.position.copy(figure.from);}}}},getTown:()=>e,select:xH,inspector:nE,onWin:()=>qd.cashRegister(),onSale:outcome=>qd.saleFeedback(outcome),isBusy:()=>_0,runPlaza:(choice,action)=>_T(Array.isArray(choice)?{lotIds:choice,action}:{lotId:choice,action}),refresh:()=>{p0();FD();},onJoin:i=>{qd.ding();Yd.addFigure({id:i.id,job:'trader',target:i.location},e);},focusPlaza:()=>{const p=e.places.find(p=>p.id==='park13'),v=new i(p.x+p.w/2,0,p.z+p.d/2);Yd.following=false;Yd.flyTo(v,v.clone().add(new i(13,17,19)),750);},focusBusiness:id=>{const p=e.places.find(p=>p.id===id);if(!p)return;Yd.following=false;Yd.selected=undefined;const target=new i(p.x+p.w/2,0,p.z+p.d/2);Yd.flyTo(target,target.clone().add(new i(13,17,19)),750);}});
 FD();
+document.querySelector('.pad')?.remove();
 '''
 (WEB/'app.js').write_text(prefix+source+'\n'+CORE+suffix,encoding='utf-8')
 html=(VENDOR/'jevton.original.html').read_text(encoding='utf-8-sig')
