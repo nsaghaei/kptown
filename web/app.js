@@ -599,7 +599,7 @@ function sT(U = 7) {
         })),
         news: [{
             hour: 0,
-            text: "Jevton wakes up to an ordinary spring day.",
+            text: "KP Town wakes up to an ordinary spring day.",
             lead: !0
         }],
         lastEvent: "calm",
@@ -635,7 +635,7 @@ function xT(U, d) {
         Q = ["office", "school", "factory", "farm", "market", "tavern", "clinic"],
         M = Q.filter((B) => j$(B, U.hour)),
         S = Q.filter((B) => !j$(B, U.hour));
-    return [`City of Jevton, ${jD(U.hour)} (${H}, ${U.season}). Population ${T.length}, ${U.tally.deaths} dead so far.${J.length?` Closed for lack of staff: ${J.join(", ")}.`:""}`, `City averages: mood ${R("mood")}, health ${R("health")}, hunger ${R("hunger")}, money $${R("money")}. ${U.tally.infections} flu infections, ${U.tally.meals} meals served, ${U.tally.helps} neighbour visits.`, `Economy: income tax ${Math.round(U.tax*100)}%, rent $12 a day, meal prices at ${Math.round(JP(U)*100)}% of normal, council treasury $${Math.round(U.treasury)}.`, `Conditions: ${D.name}. ${D.description}`, `Open now: ${M.join(", ")}. Closed: ${S.join(", ")||"nothing"}. Working at a closed place earns nothing and eating at a closed market fails.${TP(U.hour)?" It is the middle of the night: nearly everyone should be asleep at home unless they are ill, in danger, or on a night shift at the clinic.":""}`, P.length ? `Neighbours known to be struggling: ${P.join(", ")}.` : "No neighbours are known to be struggling.", "Residents deciding what to do this hour:", ...d.map((B) => zS(B, U))].join(`
+    return [`City of KP Town, ${jD(U.hour)} (${H}, ${U.season}). Population ${T.length}, ${U.tally.deaths} dead so far.${J.length?` Closed for lack of staff: ${J.join(", ")}.`:""}`, `City averages: mood ${R("mood")}, health ${R("health")}, hunger ${R("hunger")}, money $${R("money")}. ${U.tally.infections} flu infections, ${U.tally.meals} meals served, ${U.tally.helps} neighbour visits.`, `Economy: income tax ${Math.round(U.tax*100)}%, rent $12 a day, meal prices at ${Math.round(JP(U)*100)}% of normal, council treasury $${Math.round(U.treasury)}.`, `Conditions: ${D.name}. ${D.description}`, `Open now: ${M.join(", ")}. Closed: ${S.join(", ")||"nothing"}. Working at a closed place earns nothing and eating at a closed market fails.${TP(U.hour)?" It is the middle of the night: nearly everyone should be asleep at home unless they are ill, in danger, or on a night shift at the clinic.":""}`, P.length ? `Neighbours known to be struggling: ${P.join(", ")}.` : "No neighbours are known to be struggling.", "Residents deciding what to do this hour:", ...d.map((B) => zS(B, U))].join(`
 `)
 }
 var qS = 7,
@@ -1061,7 +1061,7 @@ function DR(U) {
                 M = $.filter((S) => S.activity === "work" && J.some((B) => B.id === S.work)).length;
             return `${fD[R]} (${T[2]>T[3]?"east-west":"north-south"}): passes ${J.map((S)=>S.name).join(", ")||"open ground"}. ${Q} residents heading to places on it, ${M} working there.`
         });
-    return [`City of Jevton, ${jD(U.hour)} (${D}, ${U.season}). ${$.length} residents, ${H.length} out and about, ${$.length-H.length} resting at home.`, `Conditions: ${Id[U.event].name}. ${Id[U.event].description}`, `Council priority: ${U.council.priority}${U.council.emergency>0.6?", emergency declared":""}.`, "Roads:", ...P].join(`
+    return [`City of KP Town, ${jD(U.hour)} (${D}, ${U.season}). ${$.length} residents, ${H.length} out and about, ${$.length-H.length} resting at home.`, `Conditions: ${Id[U.event].name}. ${Id[U.event].description}`, `Council priority: ${U.council.priority}${U.council.emergency>0.6?", emergency declared":""}.`, "Roads:", ...P].join(`
 `)
 }
 
@@ -1097,16 +1097,16 @@ function QP(U) {
         }))),
         P = d * 17,
         T = Id[U.event].name;
-    if (U.event !== U.lastEvent || d === 0 && U.event !== "calm") $.push(GU([`${T} hits Jevton`, `Jevton braces as ${T.toLowerCase()} sets in`, `${T}: the town wakes to a changed sky`], P));
+    if (U.event !== U.lastEvent || d === 0 && U.event !== "calm") $.push(GU([`${T} hits KP Town`, `KP Town braces as ${T.toLowerCase()} sets in`, `${T}: the town wakes to a changed sky`], P));
     let R = H("death");
-    if (R.length >= 3) $.push(GU([`${R.length} dead as ${T.toLowerCase()} tears through Jevton`, `Death toll reaches ${R.length}`, `${T}: ${R.length} lives lost`], P + 30));
+    if (R.length >= 3) $.push(GU([`${R.length} dead as ${T.toLowerCase()} tears through KP Town`, `Death toll reaches ${R.length}`, `${T}: ${R.length} lives lost`], P + 30));
     for (let {
             r: W,
             e: UU
         }
         of R.slice(0, R.length >= 3 ? 1 : 3)) {
         let PU = UU.text.replace(/\.$/, "").toLowerCase();
-        $.push(GU([`${W.name}, ${W.job}, ${PU}`, `Jevton mourns ${W.name}, ${PU}`, `${W.name} is gone: ${PU}`], P + W.name.length))
+        $.push(GU([`${W.name}, ${W.job}, ${PU}`, `KP Town mourns ${W.name}, ${PU}`, `${W.name} is gone: ${PU}`], P + W.name.length))
     }
     let Q = U.residents.flatMap((W) => W.log.filter((UU) => UU.hour >= d && UU.text.startsWith("Left $")).map((UU) => ({
         r: W,
@@ -1115,18 +1115,18 @@ function QP(U) {
     }))).sort((W, UU) => UU.amount - W.amount)[0];
     if (Q && Q.amount >= 120) $.push(Q.council ? GU([`${Q.r.name}'s $${Q.amount} goes to the council, unclaimed`, `No heirs: council takes ${Q.r.name}'s $${Q.amount}`], P + 27) : GU([`${Q.r.name} leaves $${Q.amount} to the family`, `${Q.r.name}'s will: $${Q.amount} to those at home`], P + 27));
     let M = U.residents.filter((W) => W.buried && W.diedAt === d - 3);
-    if (M.length) $.push(GU([`Jevton buries ${M.length===1?M[0].name:`${M.length} of its own`}`, `Funeral held for ${M.length===1?M[0].name:`${M.length} residents`}`, `The town lays ${M.length===1?M[0].name:`${M.length} neighbours`} to rest`], P + 20));
+    if (M.length) $.push(GU([`KP Town buries ${M.length===1?M[0].name:`${M.length} of its own`}`, `Funeral held for ${M.length===1?M[0].name:`${M.length} residents`}`, `The town lays ${M.length===1?M[0].name:`${M.length} neighbours`} to rest`], P + 20));
     let S = U.places.filter((W) => RP(U, W));
     if (S.length) $.push(GU([`${S[0].name} shut: nobody left to run it`, `Doors close at ${S[0].name}`, `${S[0].name} stands empty`], P + 21));
-    let B = U.residents.filter((W) => W.log[0]?.hour >= d && (W.log[0].text.startsWith("Moved to Jevton") || W.log[0].text.startsWith("Came for the gold"))),
+    let B = U.residents.filter((W) => W.log[0]?.hour >= d && (W.log[0].text.startsWith("Moved to KP Town") || W.log[0].text.startsWith("Came for the gold"))),
         L = B.filter((W) => W.log[0].text.startsWith("Came for the gold"));
     if (L.length) $.push(GU([`Prospectors pour in: ${L.length} arrive chasing gold`, `${L.length} fortune-seekers hit town`, `Gold fever: ${L.length} more arrive with picks and hope`], P + 23));
-    else if (B.length) $.push(GU([`${B.length} newcomers move to Jevton`, `New faces in town: ${B.map((W)=>W.name.split(" ")[0]).join(", ")}`, `Jevton grows by ${B.length}`], P + 22));
+    else if (B.length) $.push(GU([`${B.length} newcomers move to KP Town`, `New faces in town: ${B.map((W)=>W.name.split(" ")[0]).join(", ")}`, `KP Town grows by ${B.length}`], P + 22));
     let E = HP(U);
     if (E.length >= 6) $.push(GU([`Housing crisis: ${E.length} homes overcrowded`, `${E.length} households sleeping six to a room`, `Nowhere to live: ${E.length} homes bursting`], P + 24));
     if (E$(U) >= 18 && d % 24 === 23) $.push(GU([`Rents soar to $${E$(U)} a day`, `Landlords cash in: rent hits $${E$(U)}`], P + 25));
     let k = U.residents.filter((W) => W.left && W.log.at(-1)?.hour === d + 1);
-    if (k.length) $.push(GU([`${k.length} residents leave Jevton for good`, `Families flee: ${k.length} pack up and go`, `Exodus: ${k.length} give up on the town`], P + 26));
+    if (k.length) $.push(GU([`${k.length} residents leave KP Town for good`, `Families flee: ${k.length} pack up and go`, `Exodus: ${k.length} give up on the town`], P + 26));
     let A = H("warning", "zombie").length;
     if (A) $.push(GU([`${A} residents bitten in the zombie outbreak`, `Zombies claim ${A} more victims`, `Bite count rises by ${A}`], P + 1));
     let j = H("warning", "flu").length;
@@ -1160,24 +1160,24 @@ function QP(U) {
     let N = D.filter((W) => W.activity === "work" && W.effort === "hard").length;
     if (N >= 10) $.push(GU([`${N} residents push hard at work`, `Overtime everywhere: ${N} working flat out`, `A town that grafts: ${N} on the hard shift`], P + 8));
     let z = Math.round(D.reduce((W, UU) => W + UU.mood, 0) / Math.max(1, D.length));
-    if (z >= 75) $.push(GU([`Spirits high across Jevton, mood ${z}`, "Jevton in good cheer", `A happy town: mood at ${z}`], P + 12));
-    if (z <= 35) $.push(GU([`Gloom settles over Jevton, mood ${z}`, `Long faces everywhere, mood ${z}`, `Jevton's spirits sink to ${z}`], P + 13));
+    if (z >= 75) $.push(GU([`Spirits high across KP Town, mood ${z}`, "KP Town in good cheer", `A happy town: mood at ${z}`], P + 12));
+    if (z <= 35) $.push(GU([`Gloom settles over KP Town, mood ${z}`, `Long faces everywhere, mood ${z}`, `KP Town's spirits sink to ${z}`], P + 13));
     if (U.treasury >= 2500 && d % 8 === 3) $.push(GU([`Council coffers full: $${Math.round(U.treasury)} in the treasury`, `Treasury swells to $${Math.round(U.treasury)}`], P + 15));
     let w = U.places.filter((W) => U.businesses[W.id]?.hourSales >= 10);
     if (w.length) $.push(GU([`${w[0].name} does a roaring trade`, `Queues out the door at ${w[0].name}`, `${w[0].name} has its best hour yet`], P + 16));
     if (d > 0 && d % 24 === 0 && !D.some((W) => W.arrears > 0)) $.push(GU(["Every household pays the rent on time", "Rent day passes without a single arrear"], P + 17));
     let l = D.filter((W) => W.hunger < 30).length;
-    if (l >= D.length * 0.85 && d % 6 === 2) $.push(GU([`Nobody goes hungry: ${l} well fed`, "Full plates across Jevton"], P + 18));
+    if (l >= D.length * 0.85 && d % 6 === 2) $.push(GU([`Nobody goes hungry: ${l} well fed`, "Full plates across KP Town"], P + 18));
     let c = [...D].sort((W, UU) => UU.money - W.money)[0];
     if (c && d % 6 === 5) $.push(GU([`${c.name} is the richest in town with $${c.money}`, `Fortune favours ${c.name}: $${c.money} in the bank`, `${c.name}, ${c.job}, tops the rich list at $${c.money}`], P + 14));
     let y = new Set(U.news.filter((W) => W.hour >= d - 3).map((W) => W.text));
     return $.filter((W) => !y.has(W)).slice(0, 8)
 }
-var PR = (U, d = Date.now() / 1000) => U === "calm" ? GU(["Calm returns to Jevton", "Skies clear over Jevton", "Back to an ordinary day"], d) : GU([`${Id[U].name} hits Jevton`, `${Id[U].name} sweeps the town`, `Jevton braces: ${Id[U].name.toLowerCase()}`], d);
+var PR = (U, d = Date.now() / 1000) => U === "calm" ? GU(["Calm returns to KP Town", "Skies clear over KP Town", "Back to an ordinary day"], d) : GU([`${Id[U].name} hits KP Town`, `${Id[U].name} sweeps the town`, `KP Town braces: ${Id[U].name.toLowerCase()}`], d);
 
 function TR(U, d) {
     let D = U.residents.filter(($) => $.alive);
-    return [`Jevton Gazette, ${jD(U.hour-1)}. Population ${D.length}, ${U.tally.deaths} dead. Conditions: ${Id[U.event].name}.`, `Council: ${U.council.emergency>0.6?"emergency declared":"no emergency"}, priority ${U.council.priority}.`, "Stories from this hour:", ...d.map(($, H) => `${H+1}. ${$}`)].join(`
+    return [`KP Town Gazette, ${jD(U.hour-1)}. Population ${D.length}, ${U.tally.deaths} dead. Conditions: ${Id[U.event].name}.`, `Council: ${U.council.emergency>0.6?"emergency declared":"no emergency"}, priority ${U.council.priority}.`, "Stories from this hour:", ...d.map(($, H) => `${H+1}. ${$}`)].join(`
 `)
 }
 
@@ -1251,7 +1251,7 @@ function SR(U, d = Math.random) {
         let M = [...H].sort((S, B) => S.mood - B.mood).slice(0, 2 + Math.floor(d() * 5));
         for (let S of M) S.alive = !1, S.left = !0, S.log.push({
             hour: U.hour,
-            text: P >= 8 ? "Packed up and left Jevton after the deaths." : "Gave up on Jevton and moved away.",
+            text: P >= 8 ? "Packed up and left KP Town after the deaths." : "Gave up on KP Town and moved away.",
             kind: "event"
         });
         U.tally.left += M.length, D.left = M.length
@@ -1338,7 +1338,7 @@ function LR(U) {
             let R = U.businesses[T.id];
             return `${T.name} (${T.kind}): till $${Math.round(R.till)}, prices ${Math.round(R.price*100)}%, ${R.hourSales} sales last hour, ${R.shortfalls} missed payrolls.`
         });
-    return [`Economy of Jevton, ${jD(U.hour)}. Treasury $${Math.round(U.treasury)}, income tax ${Math.round(U.tax*100)}%, rent $12 a day. ${D} residents hungry, ${$} sick, ${H} nearly broke, ${d.filter((T)=>T.arrears>0).length} behind on rent.`, `Council priority: ${U.council.priority}.`, "Businesses:", ...P].join(`
+    return [`Economy of KP Town, ${jD(U.hour)}. Treasury $${Math.round(U.treasury)}, income tax ${Math.round(U.tax*100)}%, rent $12 a day. ${D} residents hungry, ${$} sick, ${H} nearly broke, ${d.filter((T)=>T.arrears>0).length} behind on rent.`, `Council priority: ${U.council.priority}.`, "Businesses:", ...P].join(`
 `)
 }
 
@@ -1375,7 +1375,7 @@ function yT(U, d, D, $) {
             alive: !0,
             log: [{
                 hour: U.hour,
-                text: $ === "gold" ? `Came for the gold and squeezed into ${T.name}.` : `Moved to Jevton and settled into ${T.name}.`,
+                text: $ === "gold" ? `Came for the gold and squeezed into ${T.name}.` : `Moved to KP Town and settled into ${T.name}.`,
                 kind: "event"
             }]
         })
@@ -1389,7 +1389,7 @@ var AR = (U) => {
     ld = (U, d) => U[Math.abs(Math.floor(d)) % U.length];
 
 function jR(U) {
-    let d = new Set(["Jevton", "Laya", "Council", "Gazette"]);
+    let d = new Set(["KP Town", "Laya", "Council", "Gazette"]);
     for (let D of U.residents)
         for (let $ of D.name.split(" ")) d.add($);
     for (let D of U.places)
@@ -1420,7 +1420,7 @@ function MP(U) {
             Q = U.history.filter((E) => Math.floor(E.hour / 24) <= T).at(-1),
             M = Q?.season ?? U.season,
             S = Q ? Id[Q.event].name.toLowerCase() : "an ordinary day",
-            B = T === 0 ? ld([`This is Jevton, a town of ${U.residents.length} in the ${M}. `, `Jevton, ${M}: ${U.residents.length} residents, seven roads, and a council that lets Laya decide. `], J) : ld([`Day ${T+1} began in ${M}, ${S}. `, `The ${M} sun rose on day ${T+1} to ${S}. `, `Day ${T+1}. ${S[0].toUpperCase()}${S.slice(1)}, and the town went about its business. `], J),
+            B = T === 0 ? ld([`This is KP Town, a town of ${U.residents.length} in the ${M}. `, `KP Town, ${M}: ${U.residents.length} residents, seven roads, and a council that lets Laya decide. `], J) : ld([`Day ${T+1} began in ${M}, ${S}. `, `The ${M} sun rose on day ${T+1} to ${S}. `, `Day ${T+1}. ${S[0].toUpperCase()}${S.slice(1)}, and the town went about its business. `], J),
             L = ["night", "morning", "afternoon", "evening"];
         for (let E of L) {
             let k = R.filter((Z) => AR(Z.hour) === E);
@@ -1436,7 +1436,7 @@ function MP(U) {
     }
     let H = U.residents.filter((T) => T.alive).length,
         P = U.tally.deaths;
-    return $.push(P ? ld([`So far Jevton has buried ${P}, and ${H} carry on.`, `${P} have died. ${H} remain, and the town keeps going.`], U.hour) : ld([`Nobody has died yet. ${H} residents, all still here.`, `${H} residents, and so far every one of them alive.`], U.hour)), $
+    return $.push(P ? ld([`So far KP Town has buried ${P}, and ${H} carry on.`, `${P} have died. ${H} remain, and the town keeps going.`], U.hour) : ld([`Nobody has died yet. ${H} residents, all still here.`, `${H} residents, and so far every one of them alive.`], U.hour)), $
 }
 
 function IR(U, d) {
@@ -1462,7 +1462,7 @@ function IR(U, d) {
             M += (M.endsWith(", ") ? k[0].toLowerCase() + k.slice(1) : k) + ER(A) + " "
         }), P.push(M.trim())
     }
-    if (!U.alive) P.push(U.left ? ld([`${U.name.split(" ")[0]} left Jevton behind.`, `Wherever ${U.name.split(" ")[0]} went next, it wasn't Jevton.`], U.age) : ld([`That was the end of ${U.name.split(" ")[0]}'s story in Jevton.`, `${U.name.split(" ")[0]} is remembered in Jevton.`], U.age));
+    if (!U.alive) P.push(U.left ? ld([`${U.name.split(" ")[0]} left KP Town behind.`, `Wherever ${U.name.split(" ")[0]} went next, it wasn't KP Town.`], U.age) : ld([`That was the end of ${U.name.split(" ")[0]}'s story in KP Town.`, `${U.name.split(" ")[0]} is remembered in KP Town.`], U.age));
     return P
 }
 var kR = "./amb-birds-xhaq3nwg.mp3";
@@ -23665,7 +23665,7 @@ function sE() {
     let U = XS(),
         d = e.tally,
         D = LU("header");
-    D.append(LU("h2", void 0, "Jevton"), LU("p", "lede", `${e.residents.filter(r=>r.alive).length} residents. Every hour, Laya makes seven decisions for each of them, sets the traffic on every road and advises the council. Change the conditions and watch the city adapt.`));
+    D.append(LU("h2", void 0, "KP Town"), LU("p", "lede", `${e.residents.filter(r=>r.alive).length} residents. Every hour, Laya makes seven decisions for each of them, sets the traffic on every road and advises the council. Change the conditions and watch the city adapt.`));
     let $ = LU("div", "council"),
         H = e.council.emergency > 0.6;
     $.append(Object.assign(LU("span", `pill ${H?"bad":"ok"}`), {
@@ -23739,7 +23739,7 @@ function sE() {
         Y.append(LU("span", "when", jD(a.hour)), a.text, ...a.lead && a.confidence ? [LU("span", "sure", `${Math.round(a.confidence*100)}%`)] : []), I.append(Y)
     }
     let Z = q0.town === "story" ? YS(MP(e)) : I;
-    return [D, sd("Laya", A), sd("Right now", B), sd("Jevton Gazette", aS("town", [
+    return [D, sd("Laya", A), sd("Right now", B), sd("KP Town Gazette", aS("town", [
         ["headlines", "Headlines"],
         ["story", "Story"]
     ]), Z), sd("Council", $), sd("People", P), sd("Economy", J), sd("Businesses", M), sd("Traffic", k), sd("Workforce", E), sd("Residents", j)]
@@ -23860,7 +23860,7 @@ function HI() {
     let U = e.tally.deaths,
         d = e.tally.left,
         D = Math.floor(e.hour / 24) + 1;
-    m0.replaceChildren(LU("p", "ending-kicker", "The end of Jevton"), LU("h2", void 0, GU(["Jevton has fallen", "Nobody is left in Jevton", "The last light goes out in Jevton"], e.hour)), LU("p", "ending-lede", `${D} days. ${U} dead, ${d} gone, ${e.decisions.toLocaleString()} decisions by Laya.`), ...MP(e).slice(-3).map((T) => LU("p", "ending-story", T)));
+    m0.replaceChildren(LU("p", "ending-kicker", "The end of KP Town"), LU("h2", void 0, GU(["KP Town has fallen", "Nobody is left in KP Town", "The last light goes out in KP Town"], e.hour)), LU("p", "ending-lede", `${D} days. ${U} dead, ${d} gone, ${e.decisions.toLocaleString()} decisions by Laya.`), ...MP(e).slice(-3).map((T) => LU("p", "ending-story", T)));
     let $ = LU("button", "btn primary", "Start again");
     $.type = "button", $.addEventListener("click", () => location.reload());
     let H = LU("button", "btn", "Read the whole story");
@@ -24035,5 +24035,5 @@ const judge=makeJudge(usage=>{
   qD.calls+=usage.calls; qD.inputTokens+=usage.inputTokens; qD.millis+=usage.millis;
   e.calls+=usage.calls;
 });
-localUi=installUI({getTown:()=>e,select:xH,inspector:nE,isBusy:()=>_0,runPlaza:()=>_T(true),refresh:()=>{p0();FD();},onJoin:i=>Yd.addFigure({id:i.id,job:'trader',target:i.location},e),focusPlaza:()=>Yd.select('i0')});
+localUi=installUI({getTown:()=>e,select:xH,inspector:nE,isBusy:()=>_0,runPlaza:()=>_T(true),refresh:()=>{p0();FD();},onJoin:i=>Yd.addFigure({id:i.id,job:'trader',target:i.location},e),focusPlaza:()=>Yd.select('i0'),focusBusiness:id=>{const p=e.places.find(p=>p.id===id);if(!p)return;Yd.following=false;Yd.selected=undefined;const target=new i(p.x+p.w/2,0,p.z+p.d/2);Yd.flyTo(target,target.clone().add(new i(13,17,19)),750);}});
 FD();
