@@ -1,46 +1,47 @@
-# Jevton with local Laya and an investor
+# KP Town · local Laya
 
-Open **http://127.0.0.1:8765** while the local server is running. To start it again, run `Start-Jevton.cmd` in this folder. Keep its terminal open; Ctrl+C stops it. Refreshing the game starts a new town, as in the original.
+A local investing game adapted from Chizi's [Jevton](https://jevton.chizi.app/). The original town, residents, graphics, sound and controls are retained, with an explicitly extended consumer/business economy and Investor Plaza. Development and balance validation are ongoing; accounting checks are in `tests/`.
 
-Use **Next hour** or **Auto** to run the town. **Investors** opens Rowan Vale's inspector. Select a business in the town overview to inspect funding requests, ownership, model probabilities, and exact cash transfers. The investor is autonomous; there is no player investment approval step.
+## Run
 
-## Preserved reference
+In the prepared workspace, run `Start-Jevton.cmd`, then open **http://127.0.0.1:8765**. Keep the terminal open. Ctrl+C stops the server. A browser refresh starts a new town.
 
-This is a local adaptation of the browser-delivered client from **Chizi's [Jevton](https://jevton.chizi.app/)**. It retains the original 3D town, seeded 120 residents, 38 homes, 17 businesses, three public spaces, seven roads, professions, relationships, activities, economy, council, Gazette, seasons, disasters, migration, mortality, inheritance, audio, and controls. The public client snapshot is retained in `vendor/`; `provenance.json` records its hash. Inspection notes are in `REFERENCE.md`.
+For a fresh checkout, install Python 3.12, create `.venv`, install a suitable PyTorch build plus `requirements.txt`, then run `.venv/Scripts/python.exe setup_model.py`. Start with `.venv/Scripts/python.exe server.py --model models/laya --device cuda`. CPU is supported with `--device cpu` but is slower. Checkpoints are downloaded only during setup; gameplay inference runs offline. The prepared runtime uses PyTorch 2.11.0+cu128 and Laya 0.3.11 on an RTX 5080.
 
-No public source repository or backend is required. This folder has not been published. Original code, visuals, and audio remain attributed to their owners; the original client is not claimed to be open source. Three.js and Laya license notices are retained in `vendor/`.
+## Play
 
-## Local decisions
+Advance with **Next hour** or **Auto**, or watch the autonomous town. **Play as KP** joins the investors with $2,200. The clock pauses for your bid or pass. Businesses offer a fixed equity lot; investors take turns raising by the stated increment or passing permanently. The highest bidder wins when all others pass. No bidder means no transfer. At most three auctions run per plaza session. Inspect businesses and portfolios at any time.
 
-The Python server binds **127.0.0.1 only** and loads the official **convaiinnovations/laya** general English checkpoint from this workspace. Inference uses the RTX 5080; no Jev key or hosted inference is used. Fonts and all 32 audio assets are local. The server sets Hugging Face/Transformers offline mode and the page's content security policy restricts connections to itself.
+Investor cash is finite. AI investors have different cash reserves, ticket/concentration limits and valuation mandates; local Laya chooses within those limits. Names are playful fictional labels, not claims about real firms.
 
-Every living resident still gets seven typed decisions. Laya also decides road traffic, council priorities, tax, business prices, headlines, funding requests, and investment acceptance. Context is separated by entity to fit Laya's smaller context window. The council is asked once per hour instead of once per resident batch. Long lists of candidate headlines are ranked in groups. No scripted policy substitutes for a model answer. Failed or malformed decisions roll back the hour.
+Shares can be liquidated immediately at their **current marked value**, rounded down to whole dollars. There are **no dividends or profit distributions**. A visible simulation settlement account pays liquidations and retains the shares. It is an elastic game settlement account, not a business customer: its balance may become negative and its outflows never count as company revenue. New issues open at or above the marked post-issue stake; unspent financing is excluded from operating value to prevent cash being counted twice.
 
-Resident prompts use current needs and availability. Previous action and current location remain in the simulation and inspector but are omitted from model input: testing showed they caused Laya to repeat actions even when residents were starving. Numerical needs are also expressed in short factual phrases such as “hungry” or “exhausted.”
+## Economy and evidence
 
-**Laya is a different model. Its choices and confidence differ from Jev's.** The original rules and layout are preserved, but matching the original town's trajectories is not claimed. The original economy itself has production inflows and consumption outflows; the conservation checks apply to the new investment and dividend transfers.
+Residents have individual cash, hunger, energy, health, persistent tastes and purchase cadences. Laya selects activities, effort, food spend and destinations. Changing trends affect only part of the population; constrained budgets and health can change individual demand. Original shops are joined by clothing, books and leisure venues. Purchases, browsing, returning customers and product returns are separate events.
 
-## Financing rules added here
+Receipt-backed quality failures cause return visits and refunds after two game hours. Refunds cannot exceed the original customer payment. Unpaid refund obligations remain explicit and reduce business value. Pitches and business inspectors expose trailing 24-hour customer, revenue, cost, quality and return evidence; growth compares two complete 24-hour windows. New purchases are shown as pending, not as a proven perfect return record.
 
-- Rowan Vale starts as an additional investor entity at the Bank with $4,000, a $500 reserve, and an $800 maximum ticket. No resident is replaced.
-- A staffed business below three normal payrolls, with a minimum buffer of $120, may consider funding every six hours. Laya chooses whether to raise or hold.
-- The requested capital aims to cover six normal payrolls, bounded to $200–$800. Pre-money value is at least $1,200, otherwise 24 normal payrolls plus cash. Shares are issued using integer accounting; existing owners retain at least 51%.
-- Rowan sees the actual offer, cash, staffing, sales and payroll shortfalls, then chooses invest, decline, or defer. Every acceptance is validated against available cash and ownership limits.
-- Investors receive their ownership share of 20% of positive daily operating profit, only to the extent cash above the operating buffer permits. New financing is excluded from profit. No returns are guaranteed.
+Owners have persistent adaptability and execution traits. Laya chooses strategy and products. Funded changes spend real cash, take time, and change product mix, capacity, appeal, quality or costs. Weak businesses can contract or fail; displaced workers may transfer to a compatible operating firm. Failed equity is worth zero.
 
-These are explicit new rules for the requested extension, not hidden rules attributed to Jevton.
+Valuation uses observed net revenue, operating profit, growth and available operating cash. Startup estimates fade as a day of evidence arrives. Estimates are a deterministic game rule, distinct from auction prices. No guaranteed strategy or realistic appraisal is claimed.
 
-## Files and verification
+The original rules were deliberately tuned for a longer investing loop: sleeping metabolism is slower, ordinary mood loss is smaller, and emigration is checked every six hours. Production is credited only while the workplace can operate. Original disasters remain available.
 
-- `web/app.js`: original simulation and renderer with small, reproducible local integration changes.
-- `web/investors.js`: offers, autonomous investor decisions, ownership, transfers and dividends.
-- `web/decisions.js`: entity-specific Laya questions and context.
-- `web/local-ui.js`: investor and business inspectors.
-- `server.py`: local inference and static serving.
-- `build.py` / `tick.js.txt`: reproducible adaptation of the original client.
-- `tests/finance.test.mjs`: conservation, duplicate settlement, reserves, ownership, dividends, refusal and invalid-answer checks.
-- `tests/verify-local.mjs`: a real-model 12-hour integration run; `verification.json` contains measured results.
+## Source, tests and provenance
 
-Run checks from this folder with `node --test tests/finance.test.mjs`. With the server running, `node tests/verify-local.mjs` runs the integration check. Runtime dependencies, checkpoints, and detailed inference audits are in the workspace's `work/` directory, outside the deliverable source folder. No credentials are needed.
+- `web/investors.js`: auctions, equity, mandates, value, liquidation and transfer ledger.
+- `web/economy.js`, `web/metrics.js`: demand, business plans, receipts and refunds.
+- `web/decisions.js`, `server.py`: actual local Laya inference. No cloud fallback.
+- `web/local-ui.js`: plaza, scorecards and persistent portfolio.
+- `build.py`, `tick.js.txt`: reproducible patches to the preserved original client.
+- `tests/finance.test.mjs`: accounting and mechanism checks.
+- `tests/balance-local.mjs`: real-model extended simulations; large run data stays untracked.
 
-The bundled environment currently uses Python 3.12, PyTorch 2.11.0+cu128 and Laya 0.3.11. `requirements.txt` records the main package versions. The launcher expects the prepared workspace layout; if this folder is moved, create a Python environment, install PyTorch and requirements, download the official Laya checkpoint, and run `python server.py --model C:\path\to\local\laya --device cuda` (or `--device cpu`).
+Run `node --test tests/finance.test.mjs`. With the local server running, `node tests/balance-local.mjs 72 ordinary 1956` runs a three-day simulation. Audit logs, virtual environments, weights and large test states are excluded from Git.
+
+This adaptation retains original attribution. The browser-delivered Jevton client is saved in `vendor/`, and `REFERENCE.md` records direct inspection. Its code/assets are not claimed to be original work or open source. Third-party license notices are retained. `provenance.json` records source/build hashes.
+
+## Sharing with colleagues
+
+The current server binds only to loopback and is not an Internet service. A static host alone cannot supply local GPU Laya inference. A practical colleague deployment needs a private authenticated web service with the same model on a GPU host, per-session state, request limits and HTTPS, or each colleague running this repository locally. Hosting destination and access controls must be selected before deployment. No deployment is included in this local build.

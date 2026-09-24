@@ -1,3 +1,4 @@
+import {productionRevenue,creditBusiness,recordLostSale} from './economy.js';
 var Ud = 40,
     oT = 120;
 var nT = 0.042,
@@ -737,6 +738,8 @@ function gS(U, d, D) {
     return NS(U, $, d.target)?.id ?? d.home
 }
 
+hD.return={label:"Return",description:"return a defective purchase",place:"market"};
+hD.shop={label:"Shop",description:"visit a shop or leisure venue",place:"market"};
 function UR(U) {
     let d = U.event,
         D = U.lastEvent !== "lottery" && d === "lottery" ? U.hour : -1,
@@ -749,7 +752,7 @@ function UR(U) {
         if (!S.alive || S.activity !== "work") continue;
         let B = P(S.work),
             L = iS[H(S.work) ?? "home"];
-        if (B && L) B.till += L * (d === "goldrush" && H(S.work) === "factory" ? 3 : 1)
+        if (B && L) creditBusiness(B, productionRevenue(U,S,L * (d === "goldrush" && H(S.work) === "factory" ? 3 : 1)))
     }
     let R = U.council.priority === "food",
         J = U.council.priority === "health",
@@ -761,9 +764,9 @@ function UR(U) {
             L = H(S.work);
         S.lastWage = 0;
         let E = -6,
-            k = 7,
+            k = 5,
             A = 0,
-            j = -2,
+            j = -1,
             C = 0;
         if (B === "work" && !j$(L ?? "home", U.hour) && L !== "clinic") j -= 2, E -= 4, S.log.push({
             hour: U.hour,
@@ -807,14 +810,14 @@ function UR(U) {
                 f = 0;
             if (R && Y > 0 && U.treasury >= Y / 2) f = Math.round(Y / 2), Y -= f;
             if (Z.food > 0 && S.money >= Y && d !== "blackout") {
-                if (C -= Y, U.treasury -= f, a) a.till += Y + f, a.sales += 1, a.hourSales += 1;
+                if (C -= Y, U.treasury -= f, a) creditBusiness(a,Y + f,S.id,Y), a.sales += 1, a.hourSales += 1;
                 $.spent += Y, $.meals += 1, k -= Z.food, j += S.spend === "generous" ? 7 : 4
-            } else j -= 4;
+            } else {j -= 4; recordLostSale(U,S);}
             if (d === "flu") A -= 3
         }
         let I = c0(U, S.home) > 4;
         if (B === "rest") {
-            if (E += I ? 18 : 30, A += S.hunger > 70 ? 0 : I ? 2 : 4, k += 3, S.sick) S.sick -= 1;
+            if (E += I ? 18 : 30, A += S.hunger > 70 ? 0 : I ? 2 : 4, k += TP(U.hour) ? -4 : 0, j += 2, S.sick) S.sick -= 1;
             if (I) j -= 3
         }
         if (B === "park" && TP(U.hour)) j -= 2, E -= 4;
@@ -830,10 +833,10 @@ function UR(U) {
             if (Y) M -= 1;
             let f = Y ? 22 : 4;
             if (J && U.treasury >= a) {
-                if (U.treasury -= a, Z) Z.till += a, Z.sales += 1, Z.hourSales += 1;
+                if (U.treasury -= a, Z) creditBusiness(Z,a,S.id,0), Z.sales += 1, Z.hourSales += 1;
                 A += f
             } else if (S.money >= a) {
-                if (C -= a, $.spent += a, Z) Z.till += a, Z.sales += 1, Z.hourSales += 1;
+                if (C -= a, $.spent += a, Z) creditBusiness(Z,a,S.id), Z.sales += 1, Z.hourSales += 1;
                 A += f
             } else A += Y ? 8 : 2;
             if (Y) S.sick = 0;
@@ -849,7 +852,7 @@ function UR(U) {
             let Z = P(S.target),
                 a = Math.round(6 * (Z?.price ?? 1));
             if (S.money >= a) {
-                if (C -= a, $.spent += a, Z) Z.till += a, Z.sales += 1, Z.hourSales += 1
+                if (C -= a, $.spent += a, Z) creditBusiness(Z,a,S.id), Z.sales += 1, Z.hourSales += 1
             }
             if (j += 9, E -= 3, d === "flu") A -= 6
         }
@@ -1237,7 +1240,7 @@ function SR(U, d = Math.random) {
     else if (H.length < 102 && U.hour % 24 === 6) D.newcomers = yT(U, Math.min(120 - H.length, 3 + Math.floor(d() * 4)), d, "settle");
     let P = U.residents.filter((M) => M.diedAt !== void 0 && M.diedAt >= U.hour - 24).length,
         T = H.reduce((M, S) => M + S.mood, 0) / Math.max(1, H.length);
-    if (H.length > 30 && (P >= 8 || T < 30) && d() < 0.5) {
+    if (H.length > 30 && U.hour % 6 === 0 && (P >= 8 || T < 30) && d() < 0.5) {
         let M = [...H].sort((S, B) => S.mood - B.mood).slice(0, 2 + Math.floor(d() * 5));
         for (let S of M) S.alive = !1, S.left = !0, S.log.push({
             hour: U.hour,

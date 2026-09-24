@@ -9,7 +9,7 @@ export function townContext(town,core) {
 export function residentRequests(town,core) {
   const live=town.residents.filter(r=>r.alive),struggling=live.filter(r=>r.health<35||r.hunger>80).sort((a,b)=>a.health-b.health).slice(0,4);
   const questions={
-    do:choice('Given this resident’s needs, the time and conditions, what should this resident do this hour?',Object.fromEntries(Object.entries(core.actions).map(([k,v])=>[k,v.description]))),
+    do:choice('Given this resident’s needs, the time and conditions, what should this resident do this hour?',Object.fromEntries(Object.entries(core.actions).filter(([k])=>!['return','shop'].includes(k)).map(([k,v])=>[k,v.description]))),
     distress:noul('This resident is in real distress and needs help from others right now.'),
     effort:choice('If this resident works, how hard should they work given energy, health and money?',Object.fromEntries(Object.entries(core.effort).map(([k,v])=>[k,v.description]))),
     spend:choice('If this resident eats, how much should they spend given hunger, money and conditions?',Object.fromEntries(Object.entries(core.spending).map(([k,v])=>[k,v.description]))),
@@ -22,7 +22,7 @@ export function residentRequests(town,core) {
     const closedByEvent=(town.event==='blackout'&&['office','market','school'].includes(work.kind))||
       (town.event==='winter'&&work.kind==='farm')||(town.event==='aliens'&&work.kind!=='clinic')||
       (town.event==='robots'&&['office','factory','school'].includes(work.kind))||(town.event==='volcano'&&work.kind==='farm');
-    const workOpen=core.isOpen(work.kind,town.hour)&&!closedByEvent;
+    const workOpen=core.isOpen(work.kind,town.hour)&&!closedByEvent&&!town.businesses[r.work]?.economy?.failed;
     const hunger=r.hunger>85?'starving and urgently needs food':r.hunger>60?'hungry':r.hunger<25?'full':'slightly hungry';
     const energy=r.energy<25?'exhausted':r.energy>70?'well rested':'tired';
     const health=r.health<40?'in poor health':r.health>75?'healthy':'in fair health';
@@ -31,7 +31,7 @@ export function residentRequests(town,core) {
     });
     // Current location and previous action anchor this small model to repeating that action.
     // Keep them in the original simulation/inspector, but ask using present needs and availability.
-    return {id:r.id,state:`${r.name}, age ${r.age}, is ${hunger}, ${energy}, and ${health}. Health ${r.health}/100, energy ${r.energy}/100, hunger ${r.hunger}/100 (higher is hungrier), mood ${r.mood}/100. Has $${r.money}; rent arrears $${r.arrears}.${r.sick?' Currently sick and needs treatment.':''}\n${core.time(town.hour)}, ${town.season}. ${core.events[town.event].description} Food shops ${core.isOpen('market',town.hour)&&town.event!=='blackout'?'open and selling meals':'closed'}. Workplace ${workOpen?'open':'closed; working earns nothing'}. ${hours<6||hours>=23?'It is nighttime, when most people sleep.':''} Rent is $12/day.`,questions:{...questions,helpwho}};
+    return {id:r.id,state:`${r.name}, age ${r.age}, is ${hunger}, ${energy}, and ${health}. Health ${r.health}/100, energy ${r.energy}/100, hunger ${r.hunger}/100 (higher is hungrier), mood ${r.mood}/100. Has $${r.money}; rent arrears $${r.arrears}.${r.sick?' Currently sick and needs treatment.':''}\n${core.time(town.hour)}, ${town.season}. ${core.events[town.event].description} Food shops ${core.isOpen('market',town.hour)&&town.event!=='blackout'?'open and selling meals':'closed'}. Workplace ${workOpen?'open':'closed; working earns nothing'}. ${hours<6||hours>=23?'It is nighttime, when most people sleep.':''} Rent is $12/day.${r.energy<30?' Immediate personal need: sleep. Exhaustion is damaging health.':r.health<35&&r.hunger<75?' Feels very ill and needs a doctor.':''}`,questions:{...questions,helpwho}};
   });
 }
 export function buildTownRequests(town,core) {

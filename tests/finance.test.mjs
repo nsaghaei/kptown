@@ -1,48 +1,17 @@
-import {test} from 'node:test';
-import assert from 'node:assert/strict';
+import {test} from 'node:test';import assert from 'node:assert/strict';
 import core from '../web/simulation.js';
-import {addInvestors,makeOffer,acceptOffer,totalCash,assertFinance,finishOperations,operatingBalances,financeTurn,ownership} from '../web/investors.js';
+import {addInvestors,makeOffer,settleLot,totalCash,assertFinance,runAuction,joinPlayer,liquidate,liquidationQuote,shareCount,valuation,operatingBalances,finishOperations} from '../web/investors.js';
+import {addEconomy,spendPlans,afterOperations,updateDemand,productionRevenue} from '../web/economy.js';
 import {validateAnswer} from '../web/client.js';
-const approve={type:'choice',choice:'invest',probabilities:{invest:.8,decline:.1,defer:.1},confidence:.8};
-test('original town topology and roster are preserved; investor is an extra entity',()=>{
-  const t=addInvestors(core.createTown());
-  assert.equal(t.residents.length,120);assert.equal(t.places.length,58);assert.equal(Object.keys(t.businesses).length,17);
-  assert.equal(t.traffic.length,7);assert.equal(t.investors.length,1);
-  assert.equal(t.residents.reduce((n,r)=>n+r.money,0),6023);assert.equal(t.treasury,600);
-});
-test('equity issue conserves cash, issues exact shares, and rejects double settlement',()=>{
-  const t=addInvestors(core.createTown()),id='clinic15',i=t.investors[0],o=makeOffer(t,id),before=totalCash(t);
-  const founderBefore=t.businesses[id].capital.founderShares;
-  acceptOffer(t,o,i,approve);
-  assert.equal(totalCash(t),before);assert.equal(t.businesses[id].capital.holdings.i0,o.shares);
-  assert.equal(t.businesses[id].capital.founderShares,founderBefore);assert.equal(t.finance.ledger.length,1);
-  assert.throws(()=>acceptOffer(t,o,i,approve),/already/);assert.equal(totalCash(t),before);assertFinance(t);
-});
-test('cash reserve and invalid approval reject before any transfer',()=>{
-  const t=addInvestors(core.createTown()),o=makeOffer(t,'clinic15'),i=t.investors[0];i.cash=i.reserve;
-  const before=totalCash(t);assert.throws(()=>acceptOffer(t,o,i,approve),/cash/);
-  assert.equal(totalCash(t),before);assert.equal(t.finance.ledger.length,0);
-  i.cash=4000;assert.throws(()=>acceptOffer(t,o,i,{...approve,choice:'decline'}),/positive/);
-});
-test('dividends exclude capital inflows and preserve working capital',()=>{
-  const t=addInvestors(core.createTown()),o=makeOffer(t,'clinic15'),i=t.investors[0];acceptOffer(t,o,i,approve);
-  const balances=operatingBalances(t);t.hour=24;const cashAfterInvestment=i.cash;
-  finishOperations(t,balances);assert.equal(i.cash,cashAfterInvestment,'fresh investment is not profit');
-  const next=operatingBalances(t);t.businesses.clinic15.till+=1000;
-  const before=totalCash(t);t.hour=48;finishOperations(t,next);
-  assert.equal(totalCash(t),before);assert.ok(i.dividends>0);assert.ok(t.businesses.clinic15.till>0);assertFinance(t);
-});
-test('model can independently refuse to raise or refuse an investment',async()=>{
-  const t=addInvestors(core.createTown()),before=totalCash(t);
-  await financeTurn(t,async requests=>Object.fromEntries(requests.map(r=>[r.id,{decision:{type:'choice',choice:'hold',probabilities:{raise:.1,hold:.9},confidence:.9}}])));
-  assert.equal(t.finance.offers.length,0);assert.equal(t.finance.ledger.length,0);assert.equal(totalCash(t),before);
-  t.hour=6;
-  await financeTurn(t,async (requests,phase)=>Object.fromEntries(requests.map(r=>[r.id,{decision:phase==='business funding'?{type:'choice',choice:'raise',probabilities:{raise:.8,hold:.2},confidence:.8}:{type:'choice',choice:'decline',probabilities:{invest:.1,decline:.8,defer:.1},confidence:.8}}])));
-  assert.ok(t.finance.offers.length>0);assert.ok(t.finance.offers.every(o=>o.status==='declined'));
-  assert.equal(t.finance.ledger.length,0);assert.equal(totalCash(t),before);
-});
-test('malformed model choices cannot enter the simulation',()=>{
-  const q={type:'choice',criteria:{yes:'yes',no:'no'}};
-  assert.throws(()=>validateAnswer(q,{type:'choice',choice:'invented',confidence:.9,probabilities:{yes:.5,no:.5}}));
-  assert.throws(()=>validateAnswer(q,{type:'choice',choice:'yes',confidence:.9,probabilities:{yes:NaN,no:.5}}));
-});
+const town=()=>addEconomy(addInvestors(core.createTown()));
+const fake=action=>async reqs=>Object.fromEntries(reqs.map(r=>[r.id,{decision:{type:'choice',choice:action,confidence:.9,probabilities:{bid:action==='bid'?.9:.1,pass:action==='pass'?.9:.1}}}]));
+function buy(t,id='market10',iid='i0',amount){const o=makeOffer(t,id);o.status='open';o.highBid=amount||o.reserve;o.highBidder=iid;settleLot(t,o);return o;}
+test('preserves town topology; five distinct autonomous investors',()=>{const t=town();assert.equal(t.residents.length,120);assert.equal(t.places.length,58);assert.equal(Object.keys(t.businesses).length,17);assert.equal(t.investors.length,5);assert.equal(t.residents.reduce((n,r)=>n+r.money,0),6023);assert.equal(t.treasury,600);});
+test('ascending auction rotates, terminates, pays once and conserves money',async()=>{const t=town(),o=makeOffer(t,'market10'),before=totalCash(t);await runAuction(t,o,fake('bid'));assert.equal(o.status,'funded');assert.ok(o.bids.length>1);assert.ok(new Set(o.bids.map(b=>b.investorId)).size>=2);assert.equal(totalCash(t),before);assert.ok(o.bids.every((b,n)=>!n||b.amount>o.bids[n-1].amount));assert.throws(()=>settleLot(t,o),/already/);assertFinance(t);});
+test('all pass yields no buyer, no transfer, no shares',async()=>{const t=town(),o=makeOffer(t,'market10'),before=totalCash(t);await runAuction(t,o,fake('pass'));assert.equal(o.status,'no-buyer');assert.equal(t.finance.ledger.length,0);assert.equal(totalCash(t),before);assert.equal(shareCount(t.businesses.market10),10000);});
+test('human bid and pass stay under human callback control',async()=>{const t=town(),p=joinPlayer(t),o=makeOffer(t,'market10');let turns=0;await runAuction(t,o,fake('pass'),{humanTurn:async()=>{turns++;return 'bid';}});assert.equal(turns,1);assert.equal(o.highBidder,p.id);assert.ok(p.cash<2200);});
+test('liquidation is immediate, share/cash conserving and not a new-issue money printer',()=>{const t=town(),p=joinPlayer(t),before=totalCash(t),o=buy(t,'market10',p.id);const b=t.businesses.market10,supply=shareCount(b),cash=b.till,quote=liquidationQuote(t,p,'market10',o.shares);assert.ok(quote<o.amount);liquidate(t,p,'market10',o.shares);assert.equal(shareCount(b),supply);assert.equal(b.till,cash);assert.equal(totalCash(t),before);assert.ok(p.cash<2200);assert.equal(b.capital.marketShares,o.shares);assert.throws(()=>liquidate(t,p,'market10',1),/share/);});
+test('no dividend/profit distribution; current cash is excluded from operating gains',()=>{const t=town(),o=buy(t),i=t.investors[0],cash=i.cash;const open=operatingBalances(t);t.businesses.market10.till+=1000;t.businesses.market10.revenue+=1000;t.hour=24;finishOperations(t,open);assert.equal(i.cash,cash);assert.ok(t.finance.ledger.every(x=>x.kind!=='dividend'));assert.equal(t.businesses.market10.capital.lastDayProfit,1000);});
+test('capital plan spends cash and owner skill materially changes delivery',()=>{const t=town(),a=t.businesses.market9,b=t.businesses.market10;for(const x of [a,b]){x.till=2000;x.economy.plan={type:'expand',product:'value',cost:500,stage:'needs funding'};}a.economy.owner.adaptability=90;b.economy.owner.adaptability=10;spendPlans(t);assert.equal(a.till,1500);assert.ok(a.economy.plan.ready<b.economy.plan.ready);t.hour=10;spendPlans(t);assert.ok(a.economy.capacity>b.economy.capacity);assert.equal(t.economy.supplierCash,1000);});
+test('demand changes producer receipts; genuine failure writes equity to zero',()=>{const t=town(),r=t.residents.find(r=>t.places.find(p=>p.id===r.work).kind==='office'),b=t.businesses[r.work];updateDemand(t);b.economy.product='value';t.economy.demand={value:120,wellness:0,experience:0};const hot=productionRevenue(t,r,20);t.economy.demand={value:0,wellness:120,experience:0};assert.ok(productionRevenue(t,r,20)<hot);const failedId=r.work;b.till=0;b.economy.strain=11;t.hour=25;afterOperations(t,operatingBalances(t));assert.equal(b.economy.failed,true);assert.equal(valuation(t,failedId).value,0);});
+test('malformed model answers rejected',()=>{const q={type:'choice',criteria:{yes:'yes',no:'no'}};assert.throws(()=>validateAnswer(q,{type:'choice',choice:'invented',confidence:.9,probabilities:{yes:.5,no:.5}}));});

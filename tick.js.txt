@@ -1,4 +1,5 @@
-async function _T() {
+async function _T(marketOnly=false) {
+    marketOnly=marketOnly===true;
     if (_0 || ZS) return;
     _0 = true;
     nH.disabled = N0.disabled = GT.disabled = true;
@@ -6,11 +7,18 @@ async function _T() {
     const before = structuredClone(e);
     u0(`Laya is deciding locally for ${e.residents.filter(r=>r.alive).length} residents…`);
     try {
-        await decideTown(e, core, judge);
+        if(!marketOnly) await decideTown(e, core, judge);
+        await planBusinesses(e,judge);
         u0('Businesses and investors are considering funding…');
-        const funded = await financeTurn(e, judge);
+        const funded = await financeTurn(e, judge,{onUpdate:()=>localUi.marketUpdate(),humanTurn:(lot,investor)=>{L$=false;z0.setAttribute('aria-pressed','false');u0('Your turn at Investor Plaza. Bid or pass to continue.');return localUi.humanTurn(lot,investor);}});
+        spendPlans(e);
+        if(!marketOnly){
         const opening = operatingBalances(e);
+        processReturns(e);
+        await chooseShops(e,core,judge);
+        await discretionaryVisits(e,judge);
         UR(e);
+        afterOperations(e,opening);
         finishOperations(e, opening);
         const changes = SR(e);
         u0('The Gazette is choosing its headline…');
@@ -24,6 +32,7 @@ async function _T() {
         if(changes.newcomers) VD('Gazette', `${changes.newcomers} newcomers arrive in Jevton.`);
         if(changes.left) VD('Gazette', `${changes.left} residents leave Jevton.`);
         if(changes.struck) VD('Breaking', `${Id[e.event].name} strikes the town.`, 'bad');
+        }
         for(const offer of funded) VD('Investment', `${e.places.find(p=>p.id===offer.businessId).name} raises $${offer.amount} from ${e.investors.find(i=>i.id===offer.investorId).name}.`);
         $I(); u0('');
         if (!e.residents.some(r=>r.alive)) {
@@ -35,6 +44,6 @@ async function _T() {
         u0(`Local Laya did not complete this hour: ${error.message}. The hour was rolled back.`);
         L$=false; z0.setAttribute('aria-pressed','false');
     }
-    p0(); FD(); _0=false; nH.disabled=N0.disabled=GT.disabled=false;
-    if(L$) setTimeout(_T,vE);
+    _0=false; p0(); FD(); nH.disabled=N0.disabled=GT.disabled=false;
+    if(L$&&!marketOnly) setTimeout(_T,vE);
 }

@@ -1,30 +1,33 @@
 // Investor Plaza: local model decisions, finite cash, fixed-share ascending auctions.
+import {metricContext} from './metrics.js';
 export const money=n=>`$${Math.round(n).toLocaleString()}`;
 const wage={clerk:14,builder:12,farmer:10,doctor:18,trader:12,musician:9,teacher:13};
 const check=(ok,message)=>{if(!ok)throw new Error(message);};
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 export const payroll=(t,id)=>t.residents.filter(r=>r.alive&&r.work===id).reduce((n,r)=>n+wage[r.job],0);
 export const cashFloor=(t,id)=>Math.max(120,payroll(t,id)*3);
-export const shareCount=b=>b.capital.founderShares+Object.values(b.capital.holdings).reduce((n,s)=>n+s,0);
+export const shareCount=b=>b.capital.founderShares+(b.capital.marketShares||0)+Object.values(b.capital.holdings).reduce((n,s)=>n+s,0);
 export const ownership=(b,id)=>(b.capital.holdings[id]||0)/shareCount(b);
-export const totalCash=t=>t.residents.reduce((n,r)=>n+r.money,0)+t.treasury+Object.values(t.businesses).reduce((n,b)=>n+b.till,0)+t.investors.reduce((n,i)=>n+i.cash,0);
+export const totalCash=t=>t.residents.reduce((n,r)=>n+r.money,0)+t.treasury+Object.values(t.businesses).reduce((n,b)=>n+b.till,0)+t.investors.reduce((n,i)=>n+i.cash,0)+(t.finance?.settlement.cash||0);
 export function addInvestors(t){
   const profiles=[
-    ['Rowan Vale',2200,900,'Value investor: buy sound businesses below estimated value; avoid overpaying.'],
-    ['Mira Chen',2400,1100,'Growth investor: favor rising revenue and customers, tolerate a modest premium.'],
-    ['Jules Okoro',2000,850,'Income investor: prefer positive profit and cash reserves; protect liquidity.'],
-    ['Sana Reyes',2600,1200,'Community investor: support useful food and health services at fair prices.'],
-    ['Theo Park',1800,800,'Contrarian investor: seek discounted recoveries, avoid expensive popular lots.']
+    ['Sapling Capital',2200,900,'Value investor: buy sound businesses below estimated value; avoid overpaying.'],
+    ['Endless Rounds Capital',2400,1100,'Growth investor: favor rising revenue and customers, tolerate a modest premium.'],
+    ['Excel Partners',2000,850,'Quality investor: prefer positive profit and cash reserves; protect liquidity.'],
+    ['Survive Capital',2600,1200,'Community investor: support useful food and health services at fair prices.'],
+    ['Contrarian Fund',1800,800,'Contrarian investor: seek discounted recoveries, avoid expensive popular lots.'],
+    ['Andreessen Morewitz',2300,950,'Product investor: favor reliable products, repeat customers and capable execution.']
   ];
-  t.investors=profiles.map(([name,cash,maxTicket,strategy],n)=>({id:`i${n}`,name,cash,initialCash:cash,reserve:300,maxTicket,strategy,location:t.places.find(p=>p.name==='Plaza').id,invested:0,dividends:0,realized:0,basis:{},lastBought:{},lastSaleReview:-12,decisions:0,activity:'At Investor Plaza',log:[]}));
-  t.finance={offers:[],ledger:[],nextId:1,decisions:0,active:null,playerActive:false,skipPlayer:false};
-  for(const b of Object.values(t.businesses)){b.revenue=0;b.capital={founderShares:10000,holdings:{},raised:0,dividends:0,lastAttempt:-24,operatingProfit:0,lastDayProfit:0,lastDecision:null,history:[]};}
+  t.investors=profiles.map(([name,cash,maxTicket,strategy],n)=>({id:`i${n===5?6:n}`,name,cash,initialCash:cash,reserve:300,maxTicket,strategy,location:t.places.find(p=>p.name==='Plaza').id,invested:0,realized:0,basis:{},lastBought:{},lastSaleReview:-12,decisions:0,activity:'At Investor Plaza',log:[]}));
+  for(const [n,i] of t.investors.entries()){i.entryMarks={};i.valueLimit=[.9,1.2,.95,1.1,.8,1.05][n];i.strategy+=` Mandate: never bid above ${Math.round(i.valueLimit*100)}% of estimated lot value.`;}
+  t.finance={offers:[],ledger:[],nextId:1,decisions:0,active:null,playerActive:false,skipPlayer:false,settlement:{cash:1000000,initialCash:1000000,paid:0}};
+  for(const b of Object.values(t.businesses)){b.revenue=0;b.capital={founderShares:10000,marketShares:0,holdings:{},raised:0,restricted:0,lastAttempt:-24,operatingProfit:0,lastDayProfit:0,lastDecision:null,history:[]};}
   return t;
 }
 export function joinPlayer(t){
   let p=t.investors.find(i=>i.human);
-  if(!p){p={id:'i5',name:'You',human:true,cash:2200,initialCash:2200,reserve:0,maxTicket:2200,strategy:'Your bids and sales are always your choice.',location:t.investors[0].location,invested:0,dividends:0,realized:0,basis:{},lastBought:{},decisions:0,activity:'At Investor Plaza',log:[]};t.investors.push(p);}
-  t.finance.playerActive=true;return p;
+  if(!p){p={id:'i5',name:'KP',human:true,cash:2200,initialCash:2200,reserve:0,maxTicket:2200,strategy:'Your bids and sales are always your choice.',location:t.investors[0].location,invested:0,dividends:0,realized:0,basis:{},lastBought:{},decisions:0,activity:'At Investor Plaza',log:[]};t.investors.push(p);}
+  delete p.dividends;p.entryMarks||={};t.finance.playerActive=true;return p;
 }
 export function valuation(t,id){
   const b=t.businesses[id],history=b.capital.history,now=history.slice(-24),prev=history.slice(-48,-24);
@@ -33,7 +36,8 @@ export function valuation(t,id){
   const staff=t.residents.filter(r=>r.alive&&r.work===id).length;
   const confidence=Math.min(1,now.length/24),anchor=Math.max(1000,payroll(t,id)*20);
   const observed=(revenue*2+Math.max(0,profit)*4)*clamp(1+(growth||0)*.25,.65,1.35)*(profit<0?.7:1)*(staff?1:.25);
-  const value=Math.max(100,Math.round(b.till+anchor*(1-confidence)+observed*confidence));
+  const owed=(t.economy?.receipts||[]).filter(r=>r.businessId===id).reduce((n,r)=>n+r.refundDue,0);
+  const value=b.economy?.failed?0:Math.max(0,Math.round(Math.max(0,b.till-b.capital.restricted)+anchor*(1-confidence)+observed*confidence-owed));
   return {value,revenue,profit,growth,hours:now.length,staff};
 }
 export function portfolio(t,i){
@@ -50,63 +54,74 @@ export function assertFinance(t){
   }
   check(new Set(t.finance.ledger.filter(x=>x.lotId).map(x=>x.lotId)).size===t.finance.ledger.filter(x=>x.lotId).length,'Duplicate settlement');
 }
-export function candidates(t){return Object.entries(t.businesses).filter(([id,b])=>payroll(t,id)>0&&b.till<cashFloor(t,id)&&t.hour-b.capital.lastAttempt>=12&&!t.finance.offers.some(o=>o.businessId===id&&['queued','open'].includes(o.status)));}
+export function candidates(t){return Object.entries(t.businesses).filter(([id,b])=>!b.economy?.failed&&payroll(t,id)>0&&(b.economy?.plan||b.till<cashFloor(t,id))&&t.hour-b.capital.lastAttempt>=12&&!t.finance.offers.some(o=>o.businessId===id&&['queued','open'].includes(o.status)));}
 function lotBase(t,id,kind,shares,reserve,sellerId){
   const lot={id:`lot-${t.finance.nextId++}`,hour:t.hour,businessId:id,kind,shares,reserve,increment:Math.max(25,Math.ceil(reserve*.08/25)*25),sellerId,status:'queued',bids:[],turns:[],passed:[],participants:[],cursor:0,highBid:0,highBidder:null};
   lot.equity=shares/(shareCount(t.businesses[id])+(kind==='primary'?shares:0));return lot;
 }
 export function makeOffer(t,id){
-  const b=t.businesses[id],need=Math.min(800,Math.max(200,Math.ceil(payroll(t,id)*6-b.till))),v=valuation(t,id).value;
-  const shares=Math.max(1,Math.min(Math.floor(shareCount(b)*clamp(need/Math.max(v,1),.06,.22)),Math.floor(b.capital.founderShares/.51-shareCount(b))));
+  const b=t.businesses[id],need=Math.min(900,Math.max(200,Math.ceil((b.economy?.plan?.cost||payroll(t,id)*6)-Math.max(0,b.till-cashFloor(t,id))))),v=valuation(t,id).value;
+  const remaining=Math.floor(b.capital.founderShares/.51-shareCount(b));
+  if(remaining<1||v<=0)return null;
+  const shares=Math.min(Math.max(1,Math.floor(shareCount(b)*clamp(need/Math.max(v,1),.06,.22))),remaining);
   if(shares<1||b.capital.founderShares/(shareCount(b)+shares)<.51)return null;
-  const reserve=Math.max(50,Math.ceil(Math.min(need,v*shares/shareCount(b))*.7/25)*25);
+  // Primary reserve is at least the currently marked post-issue stake: no buy/instant-sell subsidy.
+  const reserve=Math.max(50,Math.ceil(Math.max(Math.min(need,v*shares/shareCount(b))*.7,v*shares/(shareCount(b)+shares))/25)*25);
   return {...lotBase(t,id,'primary',shares,reserve),need,estimatedAtListing:v};
 }
-export function queueSale(t,sellerId,id,shares,reserve){
-  const seller=t.investors.find(i=>i.id===sellerId),b=t.businesses[id];
-  check(seller&&b,'Unknown seller or business');check(Number.isSafeInteger(shares)&&shares>0&&shares<=(b.capital.holdings[sellerId]||0),'Invalid sale share count');
-  check(Number.isSafeInteger(reserve)&&reserve>=1,'Reserve must be a positive whole dollar amount');
-  check(!t.finance.offers.some(o=>o.businessId===id&&['queued','open'].includes(o.status)),'This business already has a queued or active auction');
-  const lot=lotBase(t,id,'secondary',shares,reserve,sellerId);t.finance.offers.push(lot);return lot;
+export function liquidationQuote(t,i,id,shares){
+  const b=t.businesses[id],held=b.capital.holdings[i.id]||0;
+  check(Number.isSafeInteger(shares)&&shares>0&&shares<=held,'Invalid liquidation share count');
+  return Math.max(0,Math.floor(valuation(t,id).value*shares/shareCount(b)));
+}
+export function liquidate(t,i,id,shares){
+  const b=t.businesses[id],amount=liquidationQuote(t,i,id,shares),held=b.capital.holdings[i.id],removed=(i.basis[id]||0)*shares/held;
+  const before=totalCash(t),fromBefore=t.finance.settlement.cash,toBefore=i.cash,supply=shareCount(b);
+  b.capital.holdings[i.id]-=shares;b.capital.marketShares+=shares;i.basis[id]=Math.max(0,(i.basis[id]||0)-removed);i.realized+=amount-removed;i.cash+=amount;
+  t.finance.settlement.cash-=amount;t.finance.settlement.paid+=amount;
+  t.finance.ledger.push({id:`tx-${t.finance.ledger.length+1}`,hour:t.hour,kind:'liquidation',from:'settlement',to:i.id,businessId:id,amount,shares,removedBasis:removed,fromBefore,fromAfter:t.finance.settlement.cash,toBefore,toAfter:i.cash});
+  check(Math.abs(totalCash(t)-before)<1e-8,'Liquidation created unaccounted cash');check(shareCount(b)===supply,'Liquidation altered shares');assertFinance(t);return amount;
 }
 export function fairLotValue(t,lot){const b=t.businesses[lot.businessId];return valuation(t,lot.businessId).value*lot.shares/shareCount(b);}
 export function nextPrice(lot){return lot.highBid?lot.highBid+lot.increment:lot.reserve;}
 export function bidLimit(t,i,lot){
   const basis=i.basis[lot.businessId]||0;
-  return Math.max(0,Math.floor(Math.min(i.cash-i.reserve,i.maxTicket,i.human?Infinity:i.initialCash*.5-basis)));
+  return Math.max(0,Math.floor(Math.min(i.cash-i.reserve,i.maxTicket,i.human?Infinity:i.initialCash*.5-basis,i.human?Infinity:fairLotValue(t,lot)*i.valueLimit)));
 }
 export function settleLot(t,lot){
   check(lot.status==='open','Auction already resolved');
   if(!lot.highBidder){lot.status='no-buyer';lot.closedAt=t.hour;return;}
-  const buyer=t.investors.find(i=>i.id===lot.highBidder),b=t.businesses[lot.businessId],seller=lot.sellerId?t.investors.find(i=>i.id===lot.sellerId):null,amount=lot.highBid;
+  const buyer=t.investors.find(i=>i.id===lot.highBidder),b=t.businesses[lot.businessId],amount=lot.highBid;
   check(buyer&&Number.isSafeInteger(amount)&&amount>0,'Invalid winning bid');check(amount<=bidLimit(t,buyer,lot),'Winning bid exceeds available cash or exposure limit');
-  if(lot.kind==='secondary')check(seller&&seller.id!==buyer.id&&(b.capital.holdings[seller.id]||0)>=lot.shares,'Seller no longer owns these shares');
-  else check(b.capital.founderShares/(shareCount(b)+lot.shares)>=.51,'Ownership constraint');
-  const before=totalCash(t),fromBefore=buyer.cash,toBefore=seller?seller.cash:b.till,totalBefore=shareCount(b);
+  check(b.capital.founderShares/(shareCount(b)+lot.shares)>=.51,'Ownership constraint');
+  const before=totalCash(t),fromBefore=buyer.cash,toBefore=b.till,totalBefore=shareCount(b),oldShares=b.capital.holdings[buyer.id]||0;
   buyer.cash-=amount;buyer.invested+=amount;buyer.basis[lot.businessId]=(buyer.basis[lot.businessId]||0)+amount;buyer.lastBought[lot.businessId]=t.hour;
-  if(seller){const removed=(seller.basis[lot.businessId]||0)*lot.shares/b.capital.holdings[seller.id];seller.basis[lot.businessId]=Math.max(0,(seller.basis[lot.businessId]||0)-removed);seller.realized+=amount-removed;seller.cash+=amount;b.capital.holdings[seller.id]-=lot.shares;}
-  else {b.till+=amount;b.capital.raised+=amount;}
-  b.capital.holdings[buyer.id]=(b.capital.holdings[buyer.id]||0)+lot.shares;
+  b.till+=amount;b.capital.raised+=amount;b.capital.restricted+=amount;
+  b.capital.holdings[buyer.id]=oldShares+lot.shares;
+  const mark=valuation(t,lot.businessId).value/shareCount(b);
+  buyer.entryMarks[lot.businessId]=((buyer.entryMarks[lot.businessId]||mark)*oldShares+mark*lot.shares)/(oldShares+lot.shares);
+
   lot.status='funded';lot.amount=amount;lot.investorId=buyer.id;lot.fundedAt=t.hour;lot.closedAt=t.hour;
-  t.finance.ledger.push({id:`tx-${t.finance.ledger.length+1}`,hour:t.hour,kind:lot.kind==='primary'?'investment':'resale',lotId:lot.id,from:buyer.id,to:seller?seller.id:lot.businessId,businessId:lot.businessId,amount,shares:lot.shares,fromBefore,fromAfter:buyer.cash,toBefore,toAfter:seller?seller.cash:b.till});
-  check(Math.abs(totalCash(t)-before)<1e-8,'Trade created or destroyed cash');check(shareCount(b)===totalBefore+(seller?0:lot.shares),'Share supply mismatch');assertFinance(t);
+  t.finance.ledger.push({id:`tx-${t.finance.ledger.length+1}`,hour:t.hour,kind:'investment',lotId:lot.id,from:buyer.id,to:lot.businessId,businessId:lot.businessId,amount,shares:lot.shares,fromBefore,fromAfter:buyer.cash,toBefore,toAfter:b.till});
+  check(Math.abs(totalCash(t)-before)<1e-8,'Trade created or destroyed cash');check(shareCount(b)===totalBefore+lot.shares,'Share supply mismatch');assertFinance(t);
 }
 const qFunding={type:'choice',instructions:'Should the owners bring this equity lot to Investor Plaza to raise capital?',criteria:{raise:'Raise cash to sustain the business, accepting the stated dilution.',hold:'Keep ownership and rely on current cash and trading.'}};
 const qBid={type:'choice',instructions:'On this investor’s turn, raise to the stated next bid or pass permanently on this lot?',criteria:{bid:'Offer the stated next cash bid; the equity and prospects justify its cost.',pass:'Pass; protect cash because price, risk, or this business does not fit.'}};
-const qSale={type:'choice',instructions:'Should this investor offer half of this holding for sale now?',criteria:{sell:'Seek a buyer to realize gains, cut exposure or replenish cash; a sale is not guaranteed.',hold:'Keep the equity for future growth and income.'}};
-export function businessFacts(t,id){const b=t.businesses[id],v=valuation(t,id);return `${t.places.find(p=>p.id===id).name}: ${v.staff} staff, cash ${money(b.till)}, normal payroll ${money(payroll(t,id))}/work hour. Last ${v.hours}h revenue ${money(v.revenue)}, operating profit ${money(v.profit)}, revenue growth ${v.growth===null?'not enough history':Math.round(v.growth*100)+'%'}. Estimated whole equity ${money(v.value)}. ${b.shortfalls} missed payrolls. Conditions ${t.event}.`;}
+const qSale={type:'choice',instructions:'Should this investor liquidate half of this holding at the stated immediate cash quote?',criteria:{sell:'Take the quoted cash now to cut exposure, realize gains or protect capital.',hold:'Keep the equity for future value growth; no dividends are paid.'}};
+export function businessFacts(t,id){const b=t.businesses[id],v=valuation(t,id);return `${t.places.find(p=>p.id===id).name}: ${v.staff} staff, cash ${money(b.till)}, equity value ${money(v.value)}, growth ${v.growth===null?'unknown':Math.round(v.growth*100)+'%'}. ${metricContext(t,id)} Owner adaptability ${b.economy?.owner.adaptability||0}; product ${b.economy?.product||'standard'}. Plan ${b.economy?.plan?.type||'none'}.`;}
 async function ask(t,judge,requests,phase){const results=await judge(requests,phase);t.decisions+=requests.length;t.finance.decisions+=requests.length;return results;}
 async function prepare(t,judge){
   const proposals=candidates(t).map(([id])=>makeOffer(t,id)).filter(Boolean);
   if(proposals.length){const results=await ask(t,judge,proposals.map(o=>({id:o.id,state:`${businessFacts(t,o.businessId)} Cash buffer target ${money(cashFloor(t,o.businessId))}. Funding need ${money(o.need)}. Offer ${(o.equity*100).toFixed(1)}% newly issued equity with opening bid ${money(o.reserve)}. Competing investors can bid more. Existing owners retain a majority.`,questions:{decision:qFunding}})),'business funding');
     for(const o of proposals){const a=results[o.id].decision,b=t.businesses[o.businessId];b.capital.lastAttempt=t.hour;b.capital.lastDecision={hour:t.hour,...a};if(a.choice==='raise'){o.requestProbability=a.probabilities.raise;t.finance.offers.push(o);}}}
   const reviews=[];
-  for(const i of t.investors.filter(i=>!i.human&&t.hour-i.lastSaleReview>=12)){
+  for(const i of t.investors.filter(i=>!i.human&&t.hour-i.lastSaleReview>=6)){
     i.lastSaleReview=t.hour;
-    for(const [id,b]of Object.entries(t.businesses))if((b.capital.holdings[i.id]||0)>=2&&t.hour-(i.lastBought[id]??t.hour)>=12&&!t.finance.offers.some(o=>o.businessId===id&&['queued','open'].includes(o.status)))reviews.push({i,id});
+    for(const [id,b]of Object.entries(t.businesses))if((b.capital.holdings[i.id]||0)>=2)reviews.push({i,id});
   }
-  if(reviews.length){const results=await ask(t,judge,reviews.map(({i,id},n)=>({id:`sale${n}`,state:`${i.name}. ${i.strategy} Cash ${money(i.cash)}; reserve ${money(i.reserve)}. Holding estimated ${money(ownership(t.businesses[id],i.id)*valuation(t,id).value)}, remaining cost ${money(i.basis[id]||0)}. ${businessFacts(t,id)} Selling is optional and requires a buyer.`,questions:{decision:qSale}})),'share sale');
-    for(const [{i,id},n]of reviews.map((x,n)=>[x,n])){const a=results[`sale${n}`].decision;i.decisions++;i.log.push({hour:t.hour,businessId:id,phase:'sale',...a});if(a.choice==='sell'&&!t.finance.offers.some(o=>o.businessId===id&&['queued','open'].includes(o.status))){const shares=Math.floor(t.businesses[id].capital.holdings[i.id]/2);queueSale(t,i.id,id,shares,Math.max(25,Math.floor(valuation(t,id).value*shares/shareCount(t.businesses[id])*.75/25)*25));}}}
+  if(reviews.length){const results=await ask(t,judge,reviews.map(({i,id},n)=>({id:`sale${n}`,state:`${i.name}. ${i.strategy} Cash ${money(i.cash)}; reserve ${money(i.reserve)}. Holding estimated ${money(ownership(t.businesses[id],i.id)*valuation(t,id).value)}, remaining cost ${money(i.basis[id]||0)}. Immediate half-holding liquidation quote ${money(liquidationQuote(t,i,id,Math.floor(t.businesses[id].capital.holdings[i.id]/2)))} at current marked value. ${businessFacts(t,id)}`,questions:{decision:qSale}})),'share liquidation');
+    for(const [{i,id},n]of reviews.map((x,n)=>[x,n])){const a=results[`sale${n}`].decision;i.decisions++;i.log.push({hour:t.hour,businessId:id,phase:'liquidation',...a});if(a.choice==='sell')liquidate(t,i,id,Math.floor(t.businesses[id].capital.holdings[i.id]/2));}}
+
 }
 export async function runAuction(t,lot,judge,{onUpdate=()=>{},humanTurn}={}){
   check(lot.status==='queued','Auction is not queued');lot.status='open';t.finance.active=lot.id;
@@ -122,7 +137,7 @@ export async function runAuction(t,lot,judge,{onUpdate=()=>{},humanTurn}={}){
     if(amount>bidLimit(t,i,lot))reason='Cash, ticket or concentration limit';
     else if(i.human){if(!t.finance.skipPlayer){check(humanTurn,'Player turn needs a human decision handler');action=await humanTurn(lot,i);check(['bid','pass'].includes(action),'Unknown player action');}else reason='Player chose to pass remaining lots this session';}
     else {
-      const a=(await ask(t,judge,[{id:i.id,state:`${i.name}: ${i.strategy} Available cash ${money(i.cash)}, reserve ${money(i.reserve)}. ${businessFacts(t,lot.businessId)} Fixed lot ${(lot.equity*100).toFixed(1)}% equity; estimated lot value ${money(fairLotValue(t,lot))}. Next bid ${money(amount)}; current high ${money(lot.highBid)}. ${lot.kind==='primary'?'Cash funds the business.':'Cash goes to the selling investor, not the business.'} Current exposure cost ${money(i.basis[lot.businessId]||0)}. Winning cash is committed, returns uncertain.`,questions:{decision:qBid}}],'auction bid'))[i.id].decision;
+      const a=(await ask(t,judge,[{id:i.id,state:`${i.name}: ${i.strategy} Available cash ${money(i.cash)}, reserve ${money(i.reserve)}. ${businessFacts(t,lot.businessId)} Fixed lot ${(lot.equity*100).toFixed(1)}% equity; estimated lot value ${money(fairLotValue(t,lot))}. Next bid ${money(amount)}; current high ${money(lot.highBid)}. Cash funds the business; unspent new capital is excluded from its estimated value. No dividends. Current exposure cost ${money(i.basis[lot.businessId]||0)}. Winning cash is committed, returns uncertain.`,questions:{decision:qBid}}],'auction bid'))[i.id].decision;
       answer=a;action=a.choice;i.decisions++;
     }
     const turn={hour:t.hour,businessId:lot.businessId,investorId:id,amount,action,reason,...(answer?{answer}: {})};lot.turns.push(turn);i.log.push({hour:t.hour,businessId:lot.businessId,lotId:lot.id,phase:'bid',action,amount,...answer});
@@ -133,17 +148,16 @@ export async function runAuction(t,lot,judge,{onUpdate=()=>{},humanTurn}={}){
 }
 export async function financeTurn(t,judge,options={}){
   t.finance.skipPlayer=false;await prepare(t,judge);const funded=[];
-  for(const lot of t.finance.offers.filter(o=>o.status==='queued')){await runAuction(t,lot,judge,options);if(lot.status==='funded')funded.push(lot);}
+  for(const lot of t.finance.offers.filter(o=>o.status==='queued').slice(0,3)){await runAuction(t,lot,judge,options);if(lot.status==='funded')funded.push(lot);}
   assertFinance(t);return funded;
 }
 export const operatingBalances=t=>Object.fromEntries(Object.entries(t.businesses).map(([id,b])=>[id,{till:b.till,revenue:b.revenue||0}]));
 export function finishOperations(t,opening){
   for(const [id,b]of Object.entries(t.businesses)){
-    const profit=b.till-opening[id].till,revenue=(b.revenue||0)-opening[id].revenue;
-    b.capital.history.push({hour:t.hour,revenue,profit,customers:b.hourSales});if(b.capital.history.length>48)b.capital.history.shift();b.capital.operatingProfit+=profit;
+    const profit=b.till-opening[id].till,grossRevenue=(b.revenue||0)-opening[id].revenue,refunds=(t.economy?.refunds||[]).filter(r=>r.businessId===id&&r.hour===t.hour).reduce((n,r)=>n+r.amount,0),revenue=grossRevenue-refunds;
+    b.capital.history.push({hour:t.hour,revenue,grossRevenue,refunds,cogs:b.economy?.lastCogs||0,unmet:b.economy?.missed||0,profit,customers:b.hourSales});if(b.capital.history.length>48)b.capital.history.shift();b.capital.operatingProfit+=profit;
     if(t.hour%24!==0)continue;
     const dayProfit=b.capital.operatingProfit;b.capital.lastDayProfit=dayProfit;b.capital.operatingProfit=0;
-    const pool=Math.max(0,Math.min(Math.floor(dayProfit*.2),Math.floor(b.till-cashFloor(t,id)))),total=shareCount(b);
-    for(const i of t.investors){const amount=Math.floor(pool*(b.capital.holdings[i.id]||0)/total);if(amount<=0)continue;const before=totalCash(t),fromBefore=b.till,toBefore=i.cash;b.till-=amount;i.cash+=amount;i.dividends+=amount;b.capital.dividends+=amount;t.finance.ledger.push({id:`tx-${t.finance.ledger.length+1}`,hour:t.hour,kind:'dividend',from:id,to:i.id,businessId:id,amount,fromBefore,fromAfter:b.till,toBefore,toAfter:i.cash});check(Math.abs(totalCash(t)-before)<1e-8,'Dividend created cash');}
+
   }assertFinance(t);
 }

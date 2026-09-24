@@ -3,6 +3,8 @@ import {addInvestors,financeTurn,operatingBalances,finishOperations,assertFinanc
 import {decideTown,decideNews} from './decisions.js';
 import {makeJudge} from './client.js';
 import {installUI} from './local-ui.js';
+import {extendTown,addEconomy,productionRevenue,creditBusiness,recordLostSale,planBusinesses,chooseShops,spendPlans,afterOperations,discretionaryVisits} from './economy.js';
+import {processReturns} from './metrics.js';
 var localUi;
 var Ud = 40,
     oT = 120;
@@ -743,6 +745,8 @@ function gS(U, d, D) {
     return NS(U, $, d.target)?.id ?? d.home
 }
 
+hD.return={label:"Return",description:"return a defective purchase",place:"market"};
+hD.shop={label:"Shop",description:"visit a shop or leisure venue",place:"market"};
 function UR(U) {
     let d = U.event,
         D = U.lastEvent !== "lottery" && d === "lottery" ? U.hour : -1,
@@ -755,7 +759,7 @@ function UR(U) {
         if (!S.alive || S.activity !== "work") continue;
         let B = P(S.work),
             L = iS[H(S.work) ?? "home"];
-        if (B && L) B.till += L * (d === "goldrush" && H(S.work) === "factory" ? 3 : 1)
+        if (B && L) creditBusiness(B, productionRevenue(U,S,L * (d === "goldrush" && H(S.work) === "factory" ? 3 : 1)))
     }
     let R = U.council.priority === "food",
         J = U.council.priority === "health",
@@ -767,9 +771,9 @@ function UR(U) {
             L = H(S.work);
         S.lastWage = 0;
         let E = -6,
-            k = 7,
+            k = 5,
             A = 0,
-            j = -2,
+            j = -1,
             C = 0;
         if (B === "work" && !j$(L ?? "home", U.hour) && L !== "clinic") j -= 2, E -= 4, S.log.push({
             hour: U.hour,
@@ -813,14 +817,14 @@ function UR(U) {
                 f = 0;
             if (R && Y > 0 && U.treasury >= Y / 2) f = Math.round(Y / 2), Y -= f;
             if (Z.food > 0 && S.money >= Y && d !== "blackout") {
-                if (C -= Y, U.treasury -= f, a) a.till += Y + f, a.sales += 1, a.hourSales += 1;
+                if (C -= Y, U.treasury -= f, a) creditBusiness(a,Y + f,S.id,Y), a.sales += 1, a.hourSales += 1;
                 $.spent += Y, $.meals += 1, k -= Z.food, j += S.spend === "generous" ? 7 : 4
-            } else j -= 4;
+            } else {j -= 4; recordLostSale(U,S);}
             if (d === "flu") A -= 3
         }
         let I = c0(U, S.home) > 4;
         if (B === "rest") {
-            if (E += I ? 18 : 30, A += S.hunger > 70 ? 0 : I ? 2 : 4, k += 3, S.sick) S.sick -= 1;
+            if (E += I ? 18 : 30, A += S.hunger > 70 ? 0 : I ? 2 : 4, k += TP(U.hour) ? -4 : 0, j += 2, S.sick) S.sick -= 1;
             if (I) j -= 3
         }
         if (B === "park" && TP(U.hour)) j -= 2, E -= 4;
@@ -836,10 +840,10 @@ function UR(U) {
             if (Y) M -= 1;
             let f = Y ? 22 : 4;
             if (J && U.treasury >= a) {
-                if (U.treasury -= a, Z) Z.till += a, Z.sales += 1, Z.hourSales += 1;
+                if (U.treasury -= a, Z) creditBusiness(Z,a,S.id,0), Z.sales += 1, Z.hourSales += 1;
                 A += f
             } else if (S.money >= a) {
-                if (C -= a, $.spent += a, Z) Z.till += a, Z.sales += 1, Z.hourSales += 1;
+                if (C -= a, $.spent += a, Z) creditBusiness(Z,a,S.id), Z.sales += 1, Z.hourSales += 1;
                 A += f
             } else A += Y ? 8 : 2;
             if (Y) S.sick = 0;
@@ -855,7 +859,7 @@ function UR(U) {
             let Z = P(S.target),
                 a = Math.round(6 * (Z?.price ?? 1));
             if (S.money >= a) {
-                if (C -= a, $.spent += a, Z) Z.till += a, Z.sales += 1, Z.hourSales += 1
+                if (C -= a, $.spent += a, Z) creditBusiness(Z,a,S.id), Z.sales += 1, Z.hourSales += 1
             }
             if (j += 9, E -= 3, d === "flu") A -= 6
         }
@@ -1243,7 +1247,7 @@ function SR(U, d = Math.random) {
     else if (H.length < 102 && U.hour % 24 === 6) D.newcomers = yT(U, Math.min(120 - H.length, 3 + Math.floor(d() * 4)), d, "settle");
     let P = U.residents.filter((M) => M.diedAt !== void 0 && M.diedAt >= U.hour - 24).length,
         T = H.reduce((M, S) => M + S.mood, 0) / Math.max(1, H.length);
-    if (H.length > 30 && (P >= 8 || T < 30) && d() < 0.5) {
+    if (H.length > 30 && U.hour % 6 === 0 && (P >= 8 || T < 30) && d() < 0.5) {
         let M = [...H].sort((S, B) => S.mood - B.mood).slice(0, 2 + Math.floor(d() * 5));
         for (let S of M) S.alive = !1, S.left = !0, S.log.push({
             hour: U.hour,
@@ -23518,7 +23522,7 @@ var eE = 1400,
     m0 = pd("#ending"),
     ZS = !1,
     qd = new BP,
-    e = addInvestors(sT()),
+    e = addEconomy(addInvestors(extendTown(sT()))),
     DD, _0 = !1,
     L$ = !1,
     qD = {
@@ -23866,7 +23870,8 @@ function HI() {
     let P = LU("div", "ending-actions");
     P.append($, H), m0.append(P), m0.hidden = !1, requestAnimationFrame(() => m0.classList.add("show")), u0(""), p0(), FD()
 }
-async function _T() {
+async function _T(marketOnly=false) {
+    marketOnly=marketOnly===true;
     if (_0 || ZS) return;
     _0 = true;
     nH.disabled = N0.disabled = GT.disabled = true;
@@ -23874,11 +23879,18 @@ async function _T() {
     const before = structuredClone(e);
     u0(`Laya is deciding locally for ${e.residents.filter(r=>r.alive).length} residents…`);
     try {
-        await decideTown(e, core, judge);
+        if(!marketOnly) await decideTown(e, core, judge);
+        await planBusinesses(e,judge);
         u0('Businesses and investors are considering funding…');
-        const funded = await financeTurn(e, judge);
+        const funded = await financeTurn(e, judge,{onUpdate:()=>localUi.marketUpdate(),humanTurn:(lot,investor)=>{L$=false;z0.setAttribute('aria-pressed','false');u0('Your turn at Investor Plaza. Bid or pass to continue.');return localUi.humanTurn(lot,investor);}});
+        spendPlans(e);
+        if(!marketOnly){
         const opening = operatingBalances(e);
+        processReturns(e);
+        await chooseShops(e,core,judge);
+        await discretionaryVisits(e,judge);
         UR(e);
+        afterOperations(e,opening);
         finishOperations(e, opening);
         const changes = SR(e);
         u0('The Gazette is choosing its headline…');
@@ -23892,6 +23904,7 @@ async function _T() {
         if(changes.newcomers) VD('Gazette', `${changes.newcomers} newcomers arrive in Jevton.`);
         if(changes.left) VD('Gazette', `${changes.left} residents leave Jevton.`);
         if(changes.struck) VD('Breaking', `${Id[e.event].name} strikes the town.`, 'bad');
+        }
         for(const offer of funded) VD('Investment', `${e.places.find(p=>p.id===offer.businessId).name} raises $${offer.amount} from ${e.investors.find(i=>i.id===offer.investorId).name}.`);
         $I(); u0('');
         if (!e.residents.some(r=>r.alive)) {
@@ -23903,8 +23916,8 @@ async function _T() {
         u0(`Local Laya did not complete this hour: ${error.message}. The hour was rolled back.`);
         L$=false; z0.setAttribute('aria-pressed','false');
     }
-    p0(); FD(); _0=false; nH.disabled=N0.disabled=GT.disabled=false;
-    if(L$) setTimeout(_T,vE);
+    _0=false; p0(); FD(); nH.disabled=N0.disabled=GT.disabled=false;
+    if(L$&&!marketOnly) setTimeout(_T,vE);
 }
 
 var XD = {
@@ -24022,5 +24035,5 @@ const judge=makeJudge(usage=>{
   qD.calls+=usage.calls; qD.inputTokens+=usage.inputTokens; qD.millis+=usage.millis;
   e.calls+=usage.calls;
 });
-localUi=installUI({getTown:()=>e,select:xH,inspector:nE});
+localUi=installUI({getTown:()=>e,select:xH,inspector:nE,isBusy:()=>_0,runPlaza:()=>_T(true),refresh:()=>{p0();FD();},onJoin:i=>Yd.addFigure({id:i.id,job:'trader',target:i.location},e),focusPlaza:()=>Yd.select('i0')});
 FD();
